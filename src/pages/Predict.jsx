@@ -421,25 +421,6 @@ export default function Predict({ currentPlayer }) {
                       disabled={locked || submittedGroups.has(activeGroup)}
                       className="score-input text-center w-12"
                     />
-<<<<<<< HEAD
-=======
-                    <div className="flex gap-0.5">
-                      {['-', '+'].map(op => (
-                        <button
-                          key={op}
-                          onClick={() => {
-                            const cur = scores[match.id]?.home ?? 0
-                            const next = op === '+' ? Math.min(12, cur + 1) : Math.max(0, cur - 1)
-                            setScore(match.id, 'home', next)
-                          }}
-                          disabled={locked || submittedGroups.has(activeGroup)}
-                          className="w-5 h-5 rounded text-xs bg-surface-3 text-muted hover:bg-surface-2 hover:text-text disabled:opacity-40"
-                        >
-                          {op}
-                        </button>
-                      ))}
-                    </div>
->>>>>>> 0972caa (Add Save Draft / Submit buttons with per-group submission tracking)
                   </div>
 
                   {/* Dash */}
@@ -453,28 +434,9 @@ export default function Predict({ currentPlayer }) {
                       max="12"
                       value={scores[match.id]?.away ?? ''}
                       onChange={e => setScore(match.id, 'away', e.target.value)}
-                      disabled={locked}
+                      disabled={locked || submittedGroups.has(activeGroup)}
                       className="score-input text-center w-12"
                     />
-<<<<<<< HEAD
-=======
-                    <div className="flex gap-0.5">
-                      {['-', '+'].map(op => (
-                        <button
-                          key={op}
-                          onClick={() => {
-                            const cur = scores[match.id]?.away ?? 0
-                            const next = op === '+' ? Math.min(12, cur + 1) : Math.max(0, cur - 1)
-                            setScore(match.id, 'away', next)
-                          }}
-                          disabled={locked || submittedGroups.has(activeGroup)}
-                          className="w-5 h-5 rounded text-xs bg-surface-3 text-muted hover:bg-surface-2 hover:text-text disabled:opacity-40"
-                        >
-                          {op}
-                        </button>
-                      ))}
-                    </div>
->>>>>>> 0972caa (Add Save Draft / Submit buttons with per-group submission tracking)
                   </div>
                 </div>
 
