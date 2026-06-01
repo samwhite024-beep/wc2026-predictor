@@ -12,6 +12,9 @@ export default function Predict({ currentPlayer }) {
   const [saved, setSaved] = useState(false)
   const [totalDone, setTotalDone] = useState(0)
   const [locked] = useState(() => Date.now() > DEADLINE)
+  const [aiContext, setAiContext] = useState('')
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState('')
 
   const allGroups = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L']
 
@@ -61,6 +64,50 @@ export default function Predict({ currentPlayer }) {
     }
     loadMatches()
   }, [activeGroup, currentPlayer?.name])
+
+  const predictWithAI = async () => {
+    if (!aiContext.trim()) {
+      setAiError('Please enter some context for AI predictions')
+      return
+    }
+
+    setAiLoading(true)
+    setAiError('')
+
+    try {
+      const response = await supabase.functions.invoke('ai-predict', {
+        body: {
+          context: aiContext,
+          matches: matches.map(m => ({
+            id: m.id,
+            home_team: m.home_team,
+            away_team: m.away_team,
+          })),
+        },
+      })
+
+      if (response.error) {
+        setAiError(response.error.message || 'Failed to get AI predictions')
+        return
+      }
+
+      const predictions = response.data?.predictions
+      if (!predictions || typeof predictions !== 'object') {
+        setAiError('Invalid response from AI service')
+        return
+      }
+
+      setScores(prev => ({
+        ...prev,
+        ...predictions,
+      }))
+      setAiContext('')
+    } catch (err) {
+      setAiError(err.message || 'Error calling AI service')
+    } finally {
+      setAiLoading(false)
+    }
+  }
 
   const setScore = (matchId, side, val) => {
     const num = val === '' ? '' : Math.max(0, Math.min(12, parseInt(val) || 0))
@@ -252,15 +299,40 @@ export default function Predict({ currentPlayer }) {
           {groupComplete && <span className="text-green ml-2">· complete ✓</span>}
         </p>
         {!locked && (
-          <div className="flex gap-3">
-            <button className="btn-secondary text-sm">Auto-fill 1–0</button>
-            <button
-              onClick={saveGroup}
-              disabled={saving}
-              className="btn-primary text-sm"
-            >
-              {saving ? 'Saving…' : saved ? `Saved ✓` : `Save Group ${activeGroup} →`}
-            </button>
+          <div className="flex flex-col gap-3 w-full">
+            <div className="flex gap-3 items-start">
+              <input
+                type="text"
+                maxLength="1000"
+                placeholder="Add context for AI predictions (e.g., 'form, injuries, weather')…"
+                value={aiContext}
+                onChange={e => {
+                  setAiContext(e.target.value)
+                  setAiError('')
+                }}
+                className="flex-1 px-4 py-2 rounded-lg border border-surface-3 bg-surface-2 text-text placeholder-muted focus:border-gold focus:outline-none text-sm"
+              />
+              <button
+                onClick={predictWithAI}
+                disabled={aiLoading || !aiContext.trim()}
+                className="btn-secondary text-sm whitespace-nowrap"
+              >
+                {aiLoading ? '🤖 Thinking…' : '🤖 Predict'}
+              </button>
+            </div>
+            {aiError && <p className="text-pink text-xs">{aiError}</p>}
+            <div className="flex gap-3">
+              <div className="text-xs text-muted flex-1">
+                {aiContext.length}/1000 characters
+              </div>
+              <button
+                onClick={saveGroup}
+                disabled={saving}
+                className="btn-primary text-sm"
+              >
+                {saving ? 'Saving…' : saved ? `Saved ✓` : `Save Group ${activeGroup} →`}
+              </button>
+            </div>
           </div>
         )}
         {locked && <p className="text-sm text-pink">Predictions are locked.</p>}
