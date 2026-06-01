@@ -18,6 +18,15 @@ export default function Predict({ currentPlayer }) {
 
   const allGroups = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L']
 
+  const getRoundInfo = () => {
+    if (activeGroup && allGroups.includes(activeGroup)) {
+      return { stage: `Group ${activeGroup}`, roundName: 'Round 1: Group Stage', totalMatches: 72 }
+    }
+    return { stage: null, roundName: 'Unknown', totalMatches: 0 }
+  }
+
+  const roundInfo = getRoundInfo()
+
   // Load matches for group
   useEffect(() => {
     const loadMatches = async () => {
@@ -75,10 +84,23 @@ export default function Predict({ currentPlayer }) {
     setAiError('')
 
     try {
+      // Fetch all matches for the current round (all groups for group stage)
+      const stages = allGroups.map(g => `Group ${g}`)
+      const { data: roundMatches } = await supabase
+        .from('matches')
+        .select('*')
+        .in('stage', stages)
+        .order('match_date', { ascending: true })
+
+      if (!roundMatches?.length) {
+        setAiError('No matches found for this round')
+        return
+      }
+
       const response = await supabase.functions.invoke('ai-predict', {
         body: {
           context: aiContext,
-          matches: matches.map(m => ({
+          matches: roundMatches.map(m => ({
             id: m.id,
             home_team: m.home_team,
             away_team: m.away_team,
@@ -182,6 +204,43 @@ export default function Predict({ currentPlayer }) {
           </div>
         </div>
       </div>
+
+      {/* AI Predictor Section */}
+      {!locked && (
+        <div className="bg-gradient-to-r from-pink/10 via-orange-500/10 to-gold/10 border-2 border-gold/30 rounded-2xl p-6 space-y-4">
+          <div>
+            <p className="eyebrow mb-1">AI ROUND PREDICTOR</p>
+            <h2 className="font-display font-black text-2xl mb-1">Predict all {roundInfo.totalMatches} matches</h2>
+            <p className="text-sm text-muted">{roundInfo.roundName}</p>
+          </div>
+
+          <div className="flex gap-3 items-start">
+            <input
+              type="text"
+              maxLength="1000"
+              placeholder="Add context for AI predictions (e.g., 'form, injuries, weather, home advantage')…"
+              value={aiContext}
+              onChange={e => {
+                setAiContext(e.target.value)
+                setAiError('')
+              }}
+              className="flex-1 px-4 py-3 rounded-lg border border-gold/20 bg-surface-2 text-text placeholder-muted focus:border-gold focus:outline-none text-sm"
+            />
+            <button
+              onClick={predictWithAI}
+              disabled={aiLoading || !aiContext.trim()}
+              className="btn-primary text-sm whitespace-nowrap"
+            >
+              {aiLoading ? '🤖 Thinking…' : '🤖 Predict All'}
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between text-xs">
+            <div className="text-muted">{aiContext.length}/1000 characters</div>
+            {aiError && <p className="text-pink font-medium">{aiError}</p>}
+          </div>
+        </div>
+      )}
 
       {/* Group tabs */}
       <div className="flex gap-2 overflow-x-auto pb-2">
@@ -299,41 +358,13 @@ export default function Predict({ currentPlayer }) {
           {groupComplete && <span className="text-green ml-2">· complete ✓</span>}
         </p>
         {!locked && (
-          <div className="flex flex-col gap-3 w-full">
-            <div className="flex gap-3 items-start">
-              <input
-                type="text"
-                maxLength="1000"
-                placeholder="Add context for AI predictions (e.g., 'form, injuries, weather')…"
-                value={aiContext}
-                onChange={e => {
-                  setAiContext(e.target.value)
-                  setAiError('')
-                }}
-                className="flex-1 px-4 py-2 rounded-lg border border-surface-3 bg-surface-2 text-text placeholder-muted focus:border-gold focus:outline-none text-sm"
-              />
-              <button
-                onClick={predictWithAI}
-                disabled={aiLoading || !aiContext.trim()}
-                className="btn-secondary text-sm whitespace-nowrap"
-              >
-                {aiLoading ? '🤖 Thinking…' : '🤖 Predict'}
-              </button>
-            </div>
-            {aiError && <p className="text-pink text-xs">{aiError}</p>}
-            <div className="flex gap-3">
-              <div className="text-xs text-muted flex-1">
-                {aiContext.length}/1000 characters
-              </div>
-              <button
-                onClick={saveGroup}
-                disabled={saving}
-                className="btn-primary text-sm"
-              >
-                {saving ? 'Saving…' : saved ? `Saved ✓` : `Save Group ${activeGroup} →`}
-              </button>
-            </div>
-          </div>
+          <button
+            onClick={saveGroup}
+            disabled={saving}
+            className="btn-primary text-sm w-full"
+          >
+            {saving ? 'Saving…' : saved ? `Saved ✓` : `Save Group ${activeGroup} →`}
+          </button>
         )}
         {locked && <p className="text-sm text-pink">Predictions are locked.</p>}
       </div>
