@@ -14,9 +14,15 @@ export default function Leaderboard({ currentPlayer }) {
       const { data } = await supabase
         .from('leaderboard')
         .select('*')
-        .order('rank', { ascending: true })
+        .order('total_points', { ascending: false })
       if (data) {
-        setRows(data)
+        const withRank = data.map((row, i) => ({
+          ...row,
+          rank: i + 1,
+          total_predictions: row.predictions_made,
+          missed: row.wrong,
+        }))
+        setRows(withRank)
       }
       setLoading(false)
     }

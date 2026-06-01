@@ -22,23 +22,32 @@ export default function Predict({ currentPlayer }) {
       const { data } = await supabase
         .from('matches')
         .select('*')
-        .eq('group_id', activeGroup)
-        .order('kickoff', { ascending: true })
+        .like('stage', `%${activeGroup}`)
+        .order('match_date', { ascending: true })
       setMatches(data ?? [])
 
       if (!data?.length) return
+
+      // Get participant ID
+      const { data: participant } = await supabase
+        .from('participants')
+        .select('id')
+        .eq('name', currentPlayer.name)
+        .single()
+
+      if (!participant) return
 
       // Fetch existing predictions
       const ids = data.map(m => m.id)
       const { data: preds } = await supabase
         .from('predictions')
-        .select('match_id, home_score, away_score')
-        .eq('player_name', currentPlayer.name)
+        .select('match_id, home_pred, away_pred')
+        .eq('participant_id', participant.id)
         .in('match_id', ids)
 
       const scoreMap = {}
       preds?.forEach(p => {
-        scoreMap[p.match_id] = { home: p.home_score ?? '', away: p.away_score ?? '' }
+        scoreMap[p.match_id] = { home: p.home_pred ?? '', away: p.away_pred ?? '' }
       })
       setScores(scoreMap)
 
@@ -46,8 +55,8 @@ export default function Predict({ currentPlayer }) {
       const { count } = await supabase
         .from('predictions')
         .select('*', { count: 'exact', head: true })
-        .eq('player_name', currentPlayer.name)
-        .not('home_score', 'is', null)
+        .eq('participant_id', participant.id)
+        .not('home_pred', 'is', null)
       setTotalDone(count ?? 0)
     }
     loadMatches()
@@ -64,19 +73,29 @@ export default function Predict({ currentPlayer }) {
 
   const saveGroup = async () => {
     setSaving(true)
+
+    // Get participant ID
+    const { data: participant } = await supabase
+      .from('participants')
+      .select('id')
+      .eq('name', currentPlayer.name)
+      .single()
+
+    if (!participant) return
+
     const upserts = matches
       .filter(m => scores[m.id]?.home !== '' && scores[m.id]?.away !== '')
       .map(m => ({
-        player_name: currentPlayer.name,
+        participant_id: participant.id,
         match_id: m.id,
-        home_score: scores[m.id].home,
-        away_score: scores[m.id].away,
+        home_pred: scores[m.id].home,
+        away_pred: scores[m.id].away,
       }))
 
     if (upserts.length) {
       await supabase
         .from('predictions')
-        .upsert(upserts, { onConflict: 'player_name,match_id' })
+        .upsert(upserts, { onConflict: 'participant_id,match_id' })
     }
     setSaving(false)
     setSaved(true)
@@ -84,8 +103,8 @@ export default function Predict({ currentPlayer }) {
     const { count } = await supabase
       .from('predictions')
       .select('*', { count: 'exact', head: true })
-      .eq('player_name', currentPlayer.name)
-      .not('home_score', 'is', null)
+      .eq('participant_id', participant.id)
+      .not('home_pred', 'is', null)
     setTotalDone(count ?? 0)
   }
 
@@ -175,7 +194,7 @@ export default function Predict({ currentPlayer }) {
                 {/* Date/time */}
                 <div className="text-sm min-w-fit">
                   <div className="font-medium text-text">{dateStr}</div>
-                  <div className="text-xs text-muted mt-0.5">{timeStr} · {match.venue}</div>
+                  <div className="text-xs text-muted mt-0.5">{timeStr}</div>
                 </div>
 
                 {/* Home team */}

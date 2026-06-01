@@ -75,16 +75,16 @@ export default function Home({ currentPlayer, setCurrentPlayer }) {
         .from('matches')
         .select('*')
         .is('home_score', null)
-        .order('kickoff', { ascending: true })
+        .order('match_date', { ascending: true })
         .limit(1)
       if (matches?.[0]) {
         const m = matches[0]
         setNextMatch({
           home: m.home_team,
           away: m.away_team,
-          kickoff: m.kickoff,
-          venue: m.venue,
-          group: m.group_id,
+          kickoff: m.match_date,
+          venue: '',
+          group: m.stage?.split(' ')[1] || 'A',
         })
       }
 
@@ -101,13 +101,21 @@ export default function Home({ currentPlayer, setCurrentPlayer }) {
         })
       }
 
-      // Progress
-      const { count } = await supabase
-        .from('predictions')
-        .select('*', { count: 'exact', head: true })
-        .eq('player_name', currentPlayer.name)
-        .not('home_score', 'is', null)
-      setProgress({ done: count ?? 0, total: 72 })
+      // Get participant ID for progress
+      const { data: participant } = await supabase
+        .from('participants')
+        .select('id')
+        .eq('name', currentPlayer.name)
+        .single()
+
+      if (participant) {
+        const { count } = await supabase
+          .from('predictions')
+          .select('*', { count: 'exact', head: true })
+          .eq('participant_id', participant.id)
+          .not('home_pred', 'is', null)
+        setProgress({ done: count ?? 0, total: 72 })
+      }
 
       // Last result
       const { data: results } = await supabase
