@@ -75,6 +75,7 @@ export default function Home({ currentPlayer, setCurrentPlayer }) {
         .from('matches')
         .select('*')
         .is('home_score', null)
+        .like('stage', 'Group%')
         .order('match_date', { ascending: true })
         .limit(1)
       if (matches?.[0]) {
@@ -84,7 +85,7 @@ export default function Home({ currentPlayer, setCurrentPlayer }) {
           away: m.away_team,
           kickoff: m.match_date,
           venue: '',
-          group: m.stage?.split(' ')[1] || 'A',
+          group: m.stage,
         })
       }
 
@@ -176,7 +177,7 @@ export default function Home({ currentPlayer, setCurrentPlayer }) {
               />
               <div className="relative space-y-6">
                 <div>
-                  <p className="tag mb-4">NEXT UP: {nextMatch.group || 'GROUP A'}</p>
+                  <p className="tag mb-4">NEXT UP · {nextMatch.group || 'GROUP STAGE'}</p>
                   <p className="text-sm text-muted">{nextMatch.venue}</p>
                 </div>
                 <div className="flex items-center justify-center gap-6">
