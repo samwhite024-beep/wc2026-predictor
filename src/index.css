@@ -39,6 +39,14 @@
     background: var(--surface-2);
     color: var(--gold);
   }
+  .score-input::-webkit-outer-spin-button,
+  .score-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .score-input[type="number"] {
+    -moz-appearance: textfield;
+  }
   .score-input:focus {
     border-color: #F7A50A;
     box-shadow: 0 0 0 2px rgba(247, 165, 10, 0.2);
