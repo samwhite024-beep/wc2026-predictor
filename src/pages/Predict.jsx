@@ -101,26 +101,39 @@ export default function Predict({ currentPlayer }) {
         return
       }
 
+      const matchesToPredict = roundMatches.map(m => ({
+        id: m.id,
+        home_team: m.home_team,
+        away_team: m.away_team,
+      }))
+
       const response = await supabase.functions.invoke('ai-predict', {
         body: {
           context: aiContext,
-          matches: roundMatches.map(m => ({
-            id: m.id,
-            home_team: m.home_team,
-            away_team: m.away_team,
-          })),
+          matches: matchesToPredict,
         },
       })
 
       if (response.error) {
-        setAiError(response.error.message || 'Failed to get AI predictions')
+        setAiError(`Error: ${response.error.message || 'Failed to get AI predictions'}`)
         return
       }
 
       const predictions = response.data?.predictions
       if (!predictions || typeof predictions !== 'object') {
-        setAiError('Invalid response from AI service')
+        setAiError('Invalid response format from AI service. Please try again.')
         return
+      }
+
+      const predictionCount = Object.keys(predictions).length
+      if (predictionCount === 0) {
+        setAiError('No predictions returned. Please check your context and try again.')
+        return
+      }
+
+      if (predictionCount < matchesToPredict.length) {
+        setAiError(`⚠️ Partial predictions: Only ${predictionCount}/${matchesToPredict.length} matches predicted. Your edge function may have timed out. Fill in remaining matches manually.`)
+        setTimeout(() => setAiError(''), 6000)
       }
 
       setScores(prev => ({
@@ -128,8 +141,17 @@ export default function Predict({ currentPlayer }) {
         ...predictions,
       }))
       setAiContext('')
+
+      if (predictionCount === matchesToPredict.length) {
+        setMessage({
+          type: 'success',
+          text: `✓ AI predicted all ${predictionCount} matches`,
+          visible: true,
+        })
+        setTimeout(() => setMessage(prev => ({ ...prev, visible: false })), 3000)
+      }
     } catch (err) {
-      setAiError(err.message || 'Error calling AI service')
+      setAiError(`Error: ${err.message || 'Failed to call AI service'}`)
     } finally {
       setAiLoading(false)
     }
