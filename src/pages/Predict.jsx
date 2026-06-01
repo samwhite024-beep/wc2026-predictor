@@ -102,14 +102,18 @@ export default function Predict({ currentPlayer }) {
       }
 
       const matchList = roundMatches.map((m, idx) =>
-        `${idx + 1}. ${m.home_team} vs ${m.away_team} (ID: ${m.id})`
+        `${idx + 1}. ${m.home_team} vs ${m.away_team}`
       ).join('\n')
 
       const response = await supabase.functions.invoke('ai-predict', {
         body: {
           context: aiContext,
           matchList: matchList,
-          matchCount: roundMatches.length,
+          matches: roundMatches.map(m => ({
+            match_id: m.id,
+            home_team: m.home_team,
+            away_team: m.away_team,
+          })),
         },
       })
 
