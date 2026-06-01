@@ -156,8 +156,8 @@ export default function Predict({ currentPlayer }) {
   }
 
   const groupComplete = matches.length > 0 &&
-    matches.every(m => scores[m.id]?.home !== '' && scores[m.id]?.away !== '')
-  const groupDone = matches.filter(m => scores[m.id]?.home !== '' && scores[m.id]?.away !== '').length
+    matches.every(m => scores[m.id] && scores[m.id].home !== '' && scores[m.id].away !== '')
+  const groupDone = matches.filter(m => scores[m.id] && scores[m.id].home !== '' && scores[m.id].away !== '').length
 
   const groupTeams = [...new Set(matches.flatMap(m => [m.home_team, m.away_team]))].slice(0, 4)
 
