@@ -248,10 +248,12 @@ export default function Home({ currentPlayer, setCurrentPlayer }) {
         </div>
       )}
 
-      {/* Leaderboard */}
-      <div>
-        <h2 className="font-display font-black text-3xl mb-4">Leaderboard</h2>
-        <div className="bg-surface border border-surface-3 rounded-2xl overflow-hidden">
+      {/* Leaderboard + Your Run */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Table */}
+        <div className="lg:col-span-2">
+          <h2 className="font-display font-black text-3xl mb-4">Leaderboard</h2>
+          <div className="bg-surface border border-surface-3 rounded-2xl overflow-hidden">
           {loading ? (
             <div className="p-12 text-center text-faint">Loading...</div>
           ) : (
@@ -307,6 +309,77 @@ export default function Home({ currentPlayer, setCurrentPlayer }) {
               </tbody>
             </table>
           )}
+          </div>
+        </div>
+
+        {/* Your Run sparkline */}
+        <div className="space-y-4">
+          <h2 className="font-display font-black text-3xl mb-4">Your Run</h2>
+          <div className="card">
+            <div className="mb-4">
+              <p className="eyebrow mb-2">POINTS</p>
+              <div className="flex items-baseline gap-1">
+                <span className="font-display font-black text-3xl text-gold">{standing?.pts ?? 0} pts</span>
+                <span className="text-lg font-display font-bold text-text">· #{standing?.rank ?? '—'}</span>
+              </div>
+            </div>
+            <div className="mb-4 py-4 border-t border-surface-3">
+              <svg width="100%" height="60" viewBox="0 0 300 60" className="w-full">
+                <defs>
+                  <linearGradient id="sparkfill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#F7A50A" stopOpacity="0.3" />
+                    <stop offset="100%" stopColor="#F7A50A" stopOpacity="0" />
+                  </linearGradient>
+                </defs>
+                <polyline
+                  points="10,50 50,40 90,35 130,30 170,25 210,20 250,15 290,12"
+                  fill="none"
+                  stroke="#F7A50A"
+                  strokeWidth="2"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M 10,50 L 50,40 L 90,35 L 130,30 L 170,25 L 210,20 L 250,15 L 290,12 L 290,60 L 10,60 Z"
+                  fill="url(#sparkfill)"
+                />
+                <circle cx="290" cy="12" r="3" fill="#F7A50A" />
+              </svg>
+              <div className="flex justify-between text-xs text-muted mt-2 px-1">
+                <span>R1</span>
+                <span>Now</span>
+              </div>
+            </div>
+            <div className="space-y-2 border-t border-surface-3 pt-4">
+              {(() => {
+                const me = leaderboard.find(r => r.name === currentPlayer?.name)
+                return (
+                  <>
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-green" />
+                        <span className="text-muted">Exact scores</span>
+                      </div>
+                      <span className="font-bold text-text">{me?.exact_scores ?? 0} × 3 pts</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-gold" />
+                        <span className="text-muted">Correct results</span>
+                      </div>
+                      <span className="font-bold text-text">{me?.correct_results ?? 0} × 1 pt</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-faint" />
+                        <span className="text-muted">Wrong</span>
+                      </div>
+                      <span className="font-bold text-text">{me?.wrong ?? 0}</span>
+                    </div>
+                  </>
+                )
+              })()}
+            </div>
+          </div>
         </div>
       </div>
     </div>

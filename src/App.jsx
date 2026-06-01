@@ -1,17 +1,14 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { Routes, Route, Link, useLocation } from 'react-router-dom'
-import { supabase } from './lib/supabase'
-import Home        from './pages/Home'
-import Predict     from './pages/Predict'
-import Leaderboard from './pages/Leaderboard'
-import Admin       from './pages/Admin'
+import Home    from './pages/Home'
+import Predict from './pages/Predict'
+import Admin   from './pages/Admin'
 
-function Navbar({ currentPlayer, playerRank }) {
+function Navbar({ currentPlayer }) {
   const { pathname } = useLocation()
   const links = [
-    { to: '/',            label: 'Home' },
-    { to: '/predict',     label: 'Predict' },
-    { to: '/leaderboard', label: 'Leaderboard' },
+    { to: '/',        label: 'Home' },
+    { to: '/predict', label: 'Predict' },
   ]
 
   const getInitials = (name) => {
@@ -53,16 +50,10 @@ function Navbar({ currentPlayer, playerRank }) {
           })}
         </div>
 
-        {/* User rank (right) */}
+        {/* User avatar (right) */}
         {currentPlayer && (
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <div className="text-right">
-              <div className="text-xs text-muted uppercase tracking-widest">RANK</div>
-              <div className="font-display font-black text-gold">#{playerRank || '—'}</div>
-            </div>
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pink via-orange-500 to-gold flex items-center justify-center flex-shrink-0">
-              <span className="font-display font-bold text-xs text-black">{getInitials(currentPlayer.name)}</span>
-            </div>
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pink via-orange-500 to-gold flex items-center justify-center flex-shrink-0">
+            <span className="font-display font-bold text-xs text-black">{getInitials(currentPlayer.name)}</span>
           </div>
         )}
       </div>
@@ -75,28 +66,14 @@ export default function App() {
     try { return JSON.parse(localStorage.getItem('wc2026_player') || 'null') }
     catch { return null }
   })
-  const [playerRank, setPlayerRank] = useState(null)
-
-  useEffect(() => {
-    if (!currentPlayer?.name) return
-    supabase
-      .from('leaderboard')
-      .select('rank')
-      .eq('name', currentPlayer.name)
-      .single()
-      .then(({ data }) => {
-        if (data?.rank) setPlayerRank(data.rank)
-      })
-  }, [currentPlayer?.name])
 
   return (
     <div className="min-h-screen flex flex-col bg-bg">
-      <Navbar currentPlayer={currentPlayer} playerRank={playerRank} />
+      <Navbar currentPlayer={currentPlayer} />
       <main className="flex-1">
         <Routes>
           <Route path="/" element={<Home currentPlayer={currentPlayer} setCurrentPlayer={setCurrentPlayer} />} />
           <Route path="/predict" element={<Predict currentPlayer={currentPlayer} />} />
-          <Route path="/leaderboard" element={<Leaderboard currentPlayer={currentPlayer} />} />
           <Route path="/admin" element={<Admin />} />
         </Routes>
       </main>
