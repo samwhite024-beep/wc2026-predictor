@@ -187,7 +187,7 @@ export default function Predict({ currentPlayer }) {
       <div className="flex gap-2 overflow-x-auto pb-2">
         {allGroups.map(g => {
           const groupMatches = matches.filter(m => m.group_id === g)
-          const groupDoneCnt = groupMatches.filter(m => scores[m.id]?.home !== '' && scores[m.id]?.away !== '').length
+          const groupDoneCnt = groupMatches.filter(m => scores[m.id] && scores[m.id].home !== '' && scores[m.id].away !== '').length
           const isGroupComplete = groupMatches.length > 0 && groupDoneCnt === groupMatches.length
 
           return (
