@@ -147,153 +147,89 @@ export default function Home({ currentPlayer, setCurrentPlayer }) {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+    <div className="max-w-7xl mx-auto px-6 py-8">
       {/* Header */}
-      <div className="flex justify-between items-start gap-8 flex-wrap">
-        <div>
-          <p className="eyebrow mb-2">MATCHDAY 1 · GROUP STAGE</p>
-          <h1 className="font-display font-black text-4xl sm:text-5xl tracking-tight">
-            Welcome back, {currentPlayer.name.split(' ')[0]}.
-          </h1>
-        </div>
-        <div className="text-right">
-          <p className="text-sm text-muted">Predictions lock in</p>
-          <p className="font-display font-bold text-gold text-lg tracking-tight">
-            {String(countdown.days).padStart(2, '0')}d {String(countdown.hours).padStart(2, '0')}h
-          </p>
-        </div>
+      <div className="mb-8">
+        <p className="eyebrow mb-2">WORLD CUP · 2026</p>
+        <h1 className="font-display font-black text-4xl sm:text-5xl tracking-tight mb-1">
+          Welcome back, {currentPlayer.name.split(' ')[0]}.
+        </h1>
+        <p className="text-muted">Make your predictions before the deadline</p>
       </div>
 
-      {/* Main grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: Next match */}
-        <div className="lg:col-span-2 space-y-6">
-          {nextMatch && (
-            <div className="card relative overflow-hidden">
-              <div className="absolute inset-0 pointer-events-none opacity-40"
-                style={{
-                  background: 'radial-gradient(ellipse 60% 80% at 50% 110%, rgba(247,165,10,0.1) 0%, transparent 70%)',
-                }}
-              />
-              <div className="relative space-y-6">
-                <div>
-                  <p className="tag mb-4">NEXT UP · {nextMatch.group || 'GROUP STAGE'}</p>
-                  <p className="text-sm text-muted">{nextMatch.venue}</p>
-                </div>
-                <div className="flex items-center justify-center gap-6">
-                  <div className="text-center">
-                    <div className="font-display font-bold text-xl mb-1">{nextMatch.home}</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="font-display font-black text-4xl text-gold">VS</div>
-                    <div className="text-sm text-muted mt-2">KICK-OFF 18:00</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="font-display font-bold text-xl mb-1">{nextMatch.away}</div>
-                  </div>
-                </div>
-                <Link to="/predict" className="btn-primary w-full justify-center">
-                  Predict this match →
-                </Link>
-                <p className="text-sm text-muted text-center">
-                  You've predicted <strong className="text-text">{progress.done} of {progress.total}</strong> group games
-                </p>
+      {/* Main grid: 3 columns on desktop, 1 on mobile */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        {/* Progress Card */}
+        <div className="card">
+          <p className="eyebrow mb-3">YOUR PROGRESS</p>
+          <div className="space-y-3">
+            <div>
+              <div className="flex items-baseline gap-2 mb-2">
+                <span className="font-display font-black text-3xl text-gold">{progress.done}</span>
+                <span className="text-sm text-muted">of {progress.total} predictions</span>
+              </div>
+              <div className="w-full h-2 bg-surface-3 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-pink via-orange-500 to-gold transition-all"
+                  style={{ width: `${(progress.done / progress.total) * 100}%` }}
+                />
               </div>
             </div>
-          )}
-
-          {/* Countdown */}
-          <div className="card">
-            <p className="eyebrow mb-6">GROUP STAGE LOCKS IN</p>
-            <div className="grid grid-cols-4 gap-4">
-              {[
-                ['DAYS', countdown.days],
-                ['HRS', countdown.hours],
-                ['MIN', countdown.minutes],
-                ['SEC', countdown.seconds],
-              ].map(([label, val]) => (
-                <div key={label} className="border border-surface-3 rounded-lg p-4 text-center">
-                  <div className="font-display font-black text-3xl text-gold font-variant-numeric:tabular-nums">
-                    {String(val).padStart(2, '0')}
-                  </div>
-                  <div className="text-xs text-muted uppercase tracking-widest mt-2">{label}</div>
-                </div>
-              ))}
-            </div>
-            <p className="text-xs text-muted mt-4">
-              Deadline Tue 10 Jun · 20:00 local
-            </p>
-          </div>
-
-          {/* Progress */}
-          <div className="card">
-            <p className="eyebrow mb-4">YOUR PROGRESS</p>
-            <div className="flex items-center gap-6">
-              <div className="relative">
-                <svg width="80" height="80" viewBox="0 0 80 80">
-                  <circle cx="40" cy="40" r="35" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="6" />
-                  <circle
-                    cx="40"
-                    cy="40"
-                    r="35"
-                    fill="none"
-                    stroke="url(#grad)"
-                    strokeWidth="6"
-                    strokeDasharray={`${(progress.done / progress.total) * 220} 220`}
-                    strokeLinecap="round"
-                    style={{ transform: 'rotate(-90deg)', transformOrigin: '40px 40px' }}
-                  />
-                  <defs>
-                    <linearGradient id="grad" x1="0%" y1="0%" x2="100%">
-                      <stop offset="0%" stopColor="#FF4D74" />
-                      <stop offset="46%" stopColor="#FF7A2F" />
-                      <stop offset="100%" stopColor="#F7A50A" />
-                    </linearGradient>
-                  </defs>
-                </svg>
-              </div>
-              <div>
-                <div className="font-display font-black text-3xl mb-1">
-                  <span className="text-gold">{progress.done}</span><span className="text-muted">/{progress.total}</span>
-                </div>
-                <p className="text-sm text-muted mb-3">group predictions in</p>
-                <Link to="/predict" className="btn-secondary text-sm">Finish the rest</Link>
-              </div>
-            </div>
+            <Link to="/predict" className="btn-primary text-sm w-full justify-center">
+              Continue predicting
+            </Link>
           </div>
         </div>
 
-        {/* Right: Your stats */}
-        <div className="space-y-6">
-          {/* Standing */}
-          <div className="card">
-            <p className="eyebrow mb-3">YOUR STANDING</p>
-            <div className="font-display font-black text-5xl gradient-text">
+        {/* Standing Card */}
+        <div className="card">
+          <p className="eyebrow mb-3">YOUR STANDING</p>
+          <div>
+            <div className="font-display font-black text-4xl gradient-text mb-2">
               {standing?.rank ? `${standing.rank}${ordinal(standing.rank)}` : '—'}
             </div>
-            <div className="mt-3 space-y-1">
-              <div className="text-lg font-display font-bold text-text">{standing?.pts ?? 0} <span className="text-muted text-sm font-normal">points</span></div>
-            </div>
+            <p className="text-sm text-muted">{standing?.pts ?? 0} points</p>
           </div>
+        </div>
 
-          {/* Last result */}
-          {lastResult && (
-            <div className="card">
-              <p className="eyebrow mb-4">LAST RESULT SCORED</p>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-bold">{lastResult.home} {lastResult.homeScore}–{lastResult.awayScore} {lastResult.away}</div>
-                  <div className="text-right">
-                    <div className="font-display font-black text-3xl text-green">+3</div>
-                    <p className="text-xs text-muted">points</p>
-                  </div>
-                </div>
-                <p className="text-xs text-muted">You picked 2–1 · exact!</p>
+        {/* Countdown Card */}
+        <div className="card">
+          <p className="eyebrow mb-3">LOCKS IN</p>
+          <div className="space-y-2">
+            <div className="font-display font-black text-2xl text-gold">
+              {String(countdown.days).padStart(2, '0')}d {String(countdown.hours).padStart(2, '0')}h
+            </div>
+            <p className="text-xs text-muted">Tue 10 Jun · 20:00</p>
+          </div>
+        </div>
+
+        {/* Next Match Card (compact) */}
+        {nextMatch && (
+          <div className="card">
+            <p className="eyebrow mb-3">NEXT MATCH</p>
+            <div className="space-y-2">
+              <div className="text-sm">
+                <div className="text-muted text-xs mb-1">{nextMatch.group}</div>
+                <div className="font-display font-bold text-sm">{nextMatch.home} vs {nextMatch.away}</div>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
+
+      {/* Last result (if exists) */}
+      {lastResult && (
+        <div className="card">
+          <p className="eyebrow mb-4">LAST RESULT SCORED</p>
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-bold">{lastResult.home} {lastResult.homeScore}–{lastResult.awayScore} {lastResult.away}</div>
+            <div className="text-right">
+              <div className="font-display font-black text-2xl text-green">+3</div>
+              <p className="text-xs text-muted">points</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
