@@ -22,7 +22,7 @@ export default function Predict({ currentPlayer }) {
       const { data } = await supabase
         .from('matches')
         .select('*')
-        .like('stage', `%${activeGroup}`)
+        .eq('stage', `Group ${activeGroup}`)
         .order('match_date', { ascending: true })
       setMatches(data ?? [])
 
