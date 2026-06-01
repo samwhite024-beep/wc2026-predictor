@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
@@ -7,7 +7,7 @@ const DEADLINE = new Date(import.meta.env.VITE_DEADLINE || '2026-06-10T20:00:00'
 function useCountdown(target) {
   const calc = () => {
     const diff = target - Date.now()
-    if (diff <= 0) return { expired: true }
+    if (diff <= 0) return { expired: true, days: 0, hours: 0, minutes: 0, seconds: 0 }
     return {
       expired: false,
       days:    Math.floor(diff / 86400000),
@@ -24,119 +24,267 @@ function useCountdown(target) {
   return t
 }
 
-export default function Home() {
-  const [top5, setTop5] = useState([])
-  const [totalPlayers, setTotalPlayers] = useState(0)
+export default function Home({ currentPlayer, setCurrentPlayer }) {
+  const [nextMatch, setNextMatch] = useState(null)
+  const [standing, setStanding] = useState(null)
+  const [progress, setProgress] = useState({ done: 0, total: 72 })
+  const [lastResult, setLastResult] = useState(null)
   const countdown = useCountdown(DEADLINE)
 
-  const fetchLeaderboard = useCallback(async () => {
-    const { data } = await supabase.from('leaderboard').select('*').limit(5)
-    if (data) setTop5(data)
-    const { count } = await supabase.from('participants').select('*', { count: 'exact', head: true })
-    if (count != null) setTotalPlayers(count)
-  }, [])
+  // Name entry screen
+  if (!currentPlayer) {
+    return (
+      <div className="min-h-[calc(100vh-64px)] flex flex-col items-center justify-center px-4 py-12 gap-8">
+        <div className="text-center">
+          <p className="eyebrow mb-3">World Cup · 26</p>
+          <h1 className="font-display font-black text-4xl sm:text-5xl tracking-tight mb-3 leading-tight">
+            Make your<br />
+            <span className="gradient-text">predictions.</span>
+          </h1>
+          <p className="text-muted text-lg">Enter your name to load existing picks or start fresh.</p>
+        </div>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            const name = e.target.name.value.trim()
+            if (!name) return
+            const player = { name }
+            localStorage.setItem('wc2026_player', JSON.stringify(player))
+            setCurrentPlayer(player)
+          }}
+          className="flex gap-2 w-full max-w-sm"
+        >
+          <input
+            name="name"
+            placeholder="Your name"
+            required
+            className="flex-1 px-4 py-3 rounded-xl border border-surface-3 bg-surface-2 text-text
+                       placeholder-faint focus:outline-none focus:border-gold font-body"
+          />
+          <button type="submit" className="btn-primary">Go →</button>
+        </form>
+      </div>
+    )
+  }
 
+  // Fetch data
   useEffect(() => {
-    fetchLeaderboard()
-    const sub = supabase.channel('home-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'predictions' }, fetchLeaderboard)
-      .subscribe()
-    return () => sub.unsubscribe()
-  }, [fetchLeaderboard])
+    const fetchData = async () => {
+      // Next match
+      const { data: matches } = await supabase
+        .from('matches')
+        .select('*')
+        .is('home_score', null)
+        .order('kickoff', { ascending: true })
+        .limit(1)
+      if (matches?.[0]) {
+        const m = matches[0]
+        setNextMatch({
+          home: m.home_team,
+          away: m.away_team,
+          kickoff: m.kickoff,
+          venue: m.venue,
+          group: m.group_id,
+        })
+      }
 
-  const medals = ['đĽ', 'đĽ', 'đĽ']
+      // Standing
+      const { data: board } = await supabase
+        .from('leaderboard')
+        .select('name, total_points, rank')
+        .eq('name', currentPlayer.name)
+        .single()
+      if (board) {
+        setStanding({
+          rank: board.rank,
+          pts: board.total_points,
+        })
+      }
+
+      // Progress
+      const { count } = await supabase
+        .from('predictions')
+        .select('*', { count: 'exact', head: true })
+        .eq('player_name', currentPlayer.name)
+        .not('home_score', 'is', null)
+      setProgress({ done: count ?? 0, total: 72 })
+
+      // Last result
+      const { data: results } = await supabase
+        .from('matches')
+        .select('home_team, away_team, home_score, away_score')
+        .not('home_score', 'is', null)
+        .order('kickoff', { ascending: false })
+        .limit(1)
+      if (results?.[0]) {
+        const r = results[0]
+        // TODO: fetch player's prediction for this match
+        setLastResult({
+          home: r.home_team,
+          away: r.away_team,
+          homeScore: r.home_score,
+          awayScore: r.away_score,
+        })
+      }
+    }
+    fetchData()
+  }, [currentPlayer?.name])
+
+  const ordinal = (n) => {
+    if (n === 1) return 'st'
+    if (n === 2) return 'nd'
+    if (n === 3) return 'rd'
+    return 'th'
+  }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
-
-      {/* Hero */}
-      <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-gray-900 via-red-900 to-gray-900 text-white p-8 text-center shadow-xl">
-        <div className="text-6xl mb-3">â˝</div>
-        <h1 className="text-3xl sm:text-4xl font-black tracking-tight mb-2">
-          World Cup 2026
-        </h1>
-        <p className="text-red-200 text-lg font-medium mb-1">Score Predictor</p>
-        <p className="text-gray-400 text-sm">USA Âˇ Canada Âˇ Mexico Âˇ 11 Jun â 19 Jul 2026</p>
-        <div className="mt-6 flex flex-wrap justify-center gap-3">
-          <Link to="/predict" className="btn-primary text-base px-7 py-3">
-            âď¸  Make Your Predictions
-          </Link>
-          <Link to="/leaderboard" className="btn-secondary text-base px-7 py-3">
-            đ  View Leaderboard
-          </Link>
+    <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+      {/* Header */}
+      <div className="flex justify-between items-start gap-8 flex-wrap">
+        <div>
+          <p className="eyebrow mb-2">MATCHDAY 1 · GROUP STAGE</p>
+          <h1 className="font-display font-black text-4xl sm:text-5xl tracking-tight">
+            Welcome back, {currentPlayer.name.split(' ')[0]}.
+          </h1>
+        </div>
+        <div className="text-right">
+          <p className="text-sm text-muted">Predictions lock in</p>
+          <p className="font-display font-bold text-gold text-lg tracking-tight">
+            {String(countdown.days).padStart(2, '0')}d {String(countdown.hours).padStart(2, '0')}h
+          </p>
         </div>
       </div>
 
-      {/* Countdown */}
-      <div className="card text-center">
-        <p className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
-          {countdown.expired ? 'đ Submission deadline has passed' : 'â° Group Stage Predictions Close In'}
-        </p>
-        {!countdown.expired && (
-          <div className="flex justify-center gap-4">
-            {[['Days', countdown.days], ['Hours', countdown.hours], ['Mins', countdown.minutes], ['Secs', countdown.seconds]].map(([label, val]) => (
-              <div key={label} className="flex flex-col items-center">
-                <span className="text-4xl font-black text-brand tabular-nums w-16 text-center">
-                  {String(val).padStart(2, '0')}
-                </span>
-                <span className="text-xs text-gray-500 uppercase tracking-wider mt-1">{label}</span>
-              </div>
-            ))}
-          </div>
-        )}
-        <p className="text-xs text-gray-400 mt-3">
-          Deadline: Tuesday 10 June 2026 Âˇ 20:00 local time Âˇ Submit via Email or Teams to Sam
-        </p>
-      </div>
-
-      {/* How to play */}
-      <div className="card">
-        <h2 className="font-bold text-lg mb-4">đ How to Play</h2>
-        <div className="grid sm:grid-cols-2 gap-4">
-          {[
-            ['1. Submit Group Predictions', 'Predict the score for all 72 group stage matches and answer the 3 tiebreaker questions before the deadline.'],
-            ['2. Earn Points', 'â­ 3 points for the exact scoreline. â 1 point for the correct result. â 0 for wrong.'],
-            ['3. Knockout Rounds', 'After each round you\'ll get the chance to predict the next knockout round before it kicks off.'],
-            ['4. Tiebreakers', 'If you finish level on points, tiebreakers decide the winner: highest attendance, Golden Boot, top-scoring team.'],
-          ].map(([title, desc]) => (
-            <div key={title} className="flex gap-3">
-              <div className="flex-1">
-                <p className="font-semibold text-sm text-gray-800">{title}</p>
-                <p className="text-sm text-gray-500 mt-0.5">{desc}</p>
+      {/* Main grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left: Next match */}
+        <div className="lg:col-span-2 space-y-6">
+          {nextMatch && (
+            <div className="card relative overflow-hidden">
+              <div className="absolute inset-0 pointer-events-none opacity-40"
+                style={{
+                  background: 'radial-gradient(ellipse 60% 80% at 50% 110%, rgba(247,165,10,0.1) 0%, transparent 70%)',
+                }}
+              />
+              <div className="relative space-y-6">
+                <div>
+                  <p className="tag mb-4">NEXT UP: {nextMatch.group || 'GROUP A'}</p>
+                  <p className="text-sm text-muted">{nextMatch.venue}</p>
+                </div>
+                <div className="flex items-center justify-center gap-6">
+                  <div className="text-center">
+                    <div className="font-display font-bold text-xl mb-1">{nextMatch.home}</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="font-display font-black text-4xl text-gold">VS</div>
+                    <div className="text-sm text-muted mt-2">KICK-OFF 18:00</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="font-display font-bold text-xl mb-1">{nextMatch.away}</div>
+                  </div>
+                </div>
+                <Link to="/predict" className="btn-primary w-full justify-center">
+                  Predict this match →
+                </Link>
+                <p className="text-sm text-muted text-center">
+                  You've predicted <strong className="text-text">{progress.done} of {progress.total}</strong> group games
+                </p>
               </div>
             </div>
-          ))}
-        </div>
-      </div>
+          )}
 
-      {/* Mini leaderboard */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-bold text-lg">đ Leaderboard Preview</h2>
-          <span className="text-sm text-gray-500">{totalPlayers} players entered</span>
-        </div>
-        {top5.length === 0 ? (
-          <p className="text-gray-400 text-center py-6 text-sm">No predictions submitted yet â be the first!</p>
-        ) : (
-          <div className="space-y-2">
-            {top5.map((p, i) => (
-              <div key={p.id} className={`flex items-center gap-3 px-4 py-2.5 rounded-lg
-                ${i === 0 ? 'bg-yellow-50 border border-yellow-200' : 'bg-gray-50'}`}>
-                <span className="text-xl w-8 text-center">{medals[i] ?? `#${i + 1}`}</span>
-                <span className="flex-1 font-semibold">{p.name}</span>
-                <span className="font-black text-brand text-lg">{p.total_points}</span>
-                <span className="text-xs text-gray-400">pts</span>
-              </div>
-            ))}
+          {/* Countdown */}
+          <div className="card">
+            <p className="eyebrow mb-6">GROUP STAGE LOCKS IN</p>
+            <div className="grid grid-cols-4 gap-4">
+              {[
+                ['DAYS', countdown.days],
+                ['HRS', countdown.hours],
+                ['MIN', countdown.minutes],
+                ['SEC', countdown.seconds],
+              ].map(([label, val]) => (
+                <div key={label} className="border border-surface-3 rounded-lg p-4 text-center">
+                  <div className="font-display font-black text-3xl text-gold font-variant-numeric:tabular-nums">
+                    {String(val).padStart(2, '0')}
+                  </div>
+                  <div className="text-xs text-muted uppercase tracking-widest mt-2">{label}</div>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-muted mt-4">
+              Deadline Tue 10 Jun · 20:00 local
+            </p>
           </div>
-        )}
-        <div className="mt-4 text-center">
-          <Link to="/leaderboard" className="text-brand text-sm font-medium hover:underline">
-            View full leaderboard â
-          </Link>
+
+          {/* Progress */}
+          <div className="card">
+            <p className="eyebrow mb-4">YOUR PROGRESS</p>
+            <div className="flex items-center gap-6">
+              <div className="relative">
+                <svg width="80" height="80" viewBox="0 0 80 80">
+                  <circle cx="40" cy="40" r="35" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="6" />
+                  <circle
+                    cx="40"
+                    cy="40"
+                    r="35"
+                    fill="none"
+                    stroke="url(#grad)"
+                    strokeWidth="6"
+                    strokeDasharray={`${(progress.done / progress.total) * 220} 220`}
+                    strokeLinecap="round"
+                    style={{ transform: 'rotate(-90deg)', transformOrigin: '40px 40px' }}
+                  />
+                  <defs>
+                    <linearGradient id="grad" x1="0%" y1="0%" x2="100%">
+                      <stop offset="0%" stopColor="#FF4D74" />
+                      <stop offset="46%" stopColor="#FF7A2F" />
+                      <stop offset="100%" stopColor="#F7A50A" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+              </div>
+              <div>
+                <div className="font-display font-black text-3xl mb-1">
+                  <span className="text-gold">{progress.done}</span><span className="text-muted">/{progress.total}</span>
+                </div>
+                <p className="text-sm text-muted mb-3">group predictions in</p>
+                <Link to="/predict" className="btn-secondary text-sm">Finish the rest</Link>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right: Your stats */}
+        <div className="space-y-6">
+          {/* Standing */}
+          <div className="card">
+            <p className="eyebrow mb-3">YOUR STANDING</p>
+            <div className="font-display font-black text-5xl gradient-text">
+              {standing?.rank ? `${standing.rank}${ordinal(standing.rank)}` : '—'}
+            </div>
+            <div className="mt-3 space-y-1">
+              <div className="text-lg font-display font-bold text-text">{standing?.pts ?? 0} <span className="text-muted text-sm font-normal">points</span></div>
+            </div>
+          </div>
+
+          {/* Last result */}
+          {lastResult && (
+            <div className="card">
+              <p className="eyebrow mb-4">LAST RESULT SCORED</p>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-bold">{lastResult.home} {lastResult.homeScore}–{lastResult.awayScore} {lastResult.away}</div>
+                  <div className="text-right">
+                    <div className="font-display font-black text-3xl text-green">+3</div>
+                    <p className="text-xs text-muted">points</p>
+                  </div>
+                </div>
+                <p className="text-xs text-muted">You picked 2–1 · exact!</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
-
     </div>
   )
 }

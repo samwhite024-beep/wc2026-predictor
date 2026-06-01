@@ -1,29 +1,56 @@
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700;800;900&family=Hanken+Grotesk:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-  body { @apply bg-gray-50 text-gray-900 antialiased; }
+  body {
+    @apply bg-bg text-text antialiased font-body;
+    background-image:
+      radial-gradient(ellipse 60% 40% at -10% 0%, rgba(255, 77, 116, 0.07) 0%, transparent 70%),
+      radial-gradient(ellipse 50% 35% at 110% 0%, rgba(247, 165, 10, 0.07) 0%, transparent 70%);
+    background-attachment: fixed;
+  }
 }
 
 @layer components {
+  .eyebrow {
+    @apply font-display text-xs font-bold uppercase tracking-widest text-gold;
+  }
   .btn-primary {
-    @apply bg-brand text-white font-semibold px-5 py-2.5 rounded-lg
-           hover:bg-brand-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center gap-2 px-6 py-3 rounded-xl border-none cursor-pointer
+           font-display text-sm font-bold text-black bg-sunset
+           shadow-lg shadow-gold/25 hover:shadow-gold/40 transition-all;
   }
   .btn-secondary {
-    @apply bg-white text-gray-700 font-semibold px-5 py-2.5 rounded-lg border
-           border-gray-300 hover:bg-gray-50 transition-colors;
+    @apply inline-flex items-center gap-2 px-5 py-2 rounded-lg border border-surface-3
+           bg-surface-2 text-text font-body text-sm font-medium
+           hover:border-gold hover:text-gold transition-colors;
   }
   .card {
-    @apply bg-white rounded-xl shadow-sm border border-gray-100 p-5;
+    @apply bg-surface border border-surface-3 rounded-2xl p-5 backdrop-blur-sm;
   }
   .score-input {
-    @apply w-14 h-12 text-center text-lg font-bold border-2 border-gray-200 rounded-lg
-           focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20
-           disabled:bg-gray-100 disabled:text-gray-400;
+    @apply w-14 h-12 text-center text-lg font-bold border-2 rounded-lg
+           font-display focus:outline-none focus:ring-2
+           disabled:opacity-50 disabled:cursor-not-allowed;
+    border-color: rgba(255, 255, 255, 0.08);
+    background: var(--surface-2);
+    color: var(--gold);
   }
-  .badge-exact   { @apply bg-green-100 text-green-800 text-xs font-semibold px-2 py-0.5 rounded-full; }
-  .badge-correct { @apply bg-amber-100 text-amber-800 text-xs font-semibold px-2 py-0.5 rounded-full; }
-  .badge-wrong   { @apply bg-red-100   text-red-800   text-xs font-semibold px-2 py-0.5 rounded-full; }
+  .score-input:focus {
+    border-color: #F7A50A;
+    box-shadow: 0 0 0 2px rgba(247, 165, 10, 0.2);
+  }
+  .tag {
+    @apply inline-flex items-center gap-1 px-3 py-1 rounded-full
+           bg-surface-2 text-gold text-xs font-bold uppercase tracking-widest;
+  }
+  .badge-exact   { @apply inline-block px-2 py-1 rounded-full bg-green/15 text-green text-xs font-semibold; }
+  .badge-correct { @apply inline-block px-2 py-1 rounded-full bg-gold/15 text-gold text-xs font-semibold; }
+  .badge-wrong   { @apply inline-block px-2 py-1 rounded-full bg-pink/15 text-pink text-xs font-semibold; }
+  .gradient-text {
+    @apply bg-gradient-to-r from-pink via-orange-500 to-gold bg-clip-text text-transparent;
+  }
 }

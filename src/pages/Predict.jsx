@@ -1,285 +1,283 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { calcPoints, flag, STAGE_COLORS } from '../lib/scoring'
 
 const DEADLINE = new Date(import.meta.env.VITE_DEADLINE || '2026-06-10T20:00:00')
-const isLocked = () => Date.now() > DEADLINE
 
-const TIEBREAKERS = [
-  { key: 'tb1', q: '🏟️  Which match will have the highest attendance? Give the exact attendance figure AND the stadium name.',
-    placeholder: 'e.g. 92,500 — MetLife Stadium' },
-  { key: 'tb2', q: '🥇  Which player will win the Golden Boot (top scorer)?',
-    placeholder: 'e.g. Kylian Mbappé' },
-  { key: 'tb3', q: '🏆  Which team will score the most goals across the whole tournament?',
-    placeholder: 'e.g. France' },
-]
+export default function Predict({ currentPlayer }) {
+  const [activeGroup, setActiveGroup] = useState('A')
+  const [matches, setMatches] = useState([])
+  const [scores, setScores] = useState({})
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [totalDone, setTotalDone] = useState(0)
+  const [locked] = useState(() => Date.now() > DEADLINE)
 
-export default function Predict() {
-  const [step, setStep]           = useState('name')   // 'name' | 'form' | 'done'
-  const [nameInput, setNameInput] = useState('')
-  const [participant, setParticipant] = useState(null)
-  const [matches, setMatches]     = useState([])
-  const [preds, setPreds]         = useState({})        // matchId → { home, away }
-  const [tbs, setTbs]             = useState({ tb1: '', tb2: '', tb3: '' })
-  const [saving, setSaving]       = useState(false)
-  const [error, setError]         = useState('')
-  const [activeStage, setActiveStage] = useState(null)
+  const allGroups = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L']
 
-  const loadMatches = useCallback(async () => {
-    const { data } = await supabase.from('matches').select('*').eq('is_open', true).order('match_num')
-    if (data) {
-      setMatches(data)
-      if (data.length > 0) setActiveStage(data[0].stage)
+  // Load matches for group
+  useEffect(() => {
+    const loadMatches = async () => {
+      setSaved(false)
+      const { data } = await supabase
+        .from('matches')
+        .select('*')
+        .eq('group_id', activeGroup)
+        .order('kickoff', { ascending: true })
+      setMatches(data ?? [])
+
+      if (!data?.length) return
+
+      // Fetch existing predictions
+      const ids = data.map(m => m.id)
+      const { data: preds } = await supabase
+        .from('predictions')
+        .select('match_id, home_score, away_score')
+        .eq('player_name', currentPlayer.name)
+        .in('match_id', ids)
+
+      const scoreMap = {}
+      preds?.forEach(p => {
+        scoreMap[p.match_id] = { home: p.home_score ?? '', away: p.away_score ?? '' }
+      })
+      setScores(scoreMap)
+
+      // Total progress
+      const { count } = await supabase
+        .from('predictions')
+        .select('*', { count: 'exact', head: true })
+        .eq('player_name', currentPlayer.name)
+        .not('home_score', 'is', null)
+      setTotalDone(count ?? 0)
     }
-  }, [])
-
-  const loadExisting = useCallback(async (participantId) => {
-    const [{ data: predData }, { data: tbData }] = await Promise.all([
-      supabase.from('predictions').select('match_id, home_pred, away_pred').eq('participant_id', participantId),
-      supabase.from('tiebreakers').select('tb1,tb2,tb3').eq('participant_id', participantId).maybeSingle(),
-    ])
-    if (predData) {
-      const map = {}
-      predData.forEach(p => { map[p.match_id] = { home: p.home_pred ?? '', away: p.away_pred ?? '' } })
-      setPreds(map)
-    }
-    if (tbData) setTbs({ tb1: tbData.tb1 ?? '', tb2: tbData.tb2 ?? '', tb3: tbData.tb3 ?? '' })
-  }, [])
-
-  const handleNameSubmit = async (e) => {
-    e.preventDefault()
-    const name = nameInput.trim()
-    if (!name) return
-    setError('')
-    setSaving(true)
-    try {
-      const { data, error: err } = await supabase
-        .from('participants')
-        .upsert({ name }, { onConflict: 'name', ignoreDuplicates: false })
-        .select().single()
-      if (err) throw err
-      setParticipant(data)
-      await Promise.all([loadMatches(), loadExisting(data.id)])
-      setStep('form')
-    } catch (e) {
-      setError(e.message)
-    } finally {
-      setSaving(false)
-    }
-  }
+    loadMatches()
+  }, [activeGroup, currentPlayer?.name])
 
   const setScore = (matchId, side, val) => {
-    const n = val === '' ? '' : Math.max(0, Math.min(99, parseInt(val) || 0))
-    setPreds(p => ({ ...p, [matchId]: { ...p[matchId], [side]: n } }))
+    const num = val === '' ? '' : Math.max(0, Math.min(12, parseInt(val) || 0))
+    setScores(p => ({
+      ...p,
+      [matchId]: { ...p[matchId], [side]: num },
+    }))
+    setSaved(false)
   }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    if (isLocked()) return
+  const saveGroup = async () => {
     setSaving(true)
-    setError('')
-    try {
-      const predRows = Object.entries(preds)
-        .filter(([, v]) => v.home !== '' && v.away !== '')
-        .map(([matchId, v]) => ({
-          participant_id: participant.id,
-          match_id: parseInt(matchId),
-          home_pred: parseInt(v.home),
-          away_pred: parseInt(v.away),
-          updated_at: new Date().toISOString(),
-        }))
-      if (predRows.length > 0) {
-        const { error: predErr } = await supabase.from('predictions').upsert(predRows, { onConflict: 'participant_id,match_id' })
-        if (predErr) throw predErr
-      }
-      await supabase.from('tiebreakers').upsert({ participant_id: participant.id, ...tbs }, { onConflict: 'participant_id' })
-      setStep('done')
-    } catch (e) {
-      setError(e.message)
-    } finally {
-      setSaving(false)
+    const upserts = matches
+      .filter(m => scores[m.id]?.home !== '' && scores[m.id]?.away !== '')
+      .map(m => ({
+        player_name: currentPlayer.name,
+        match_id: m.id,
+        home_score: scores[m.id].home,
+        away_score: scores[m.id].away,
+      }))
+
+    if (upserts.length) {
+      await supabase
+        .from('predictions')
+        .upsert(upserts, { onConflict: 'player_name,match_id' })
     }
+    setSaving(false)
+    setSaved(true)
+
+    const { count } = await supabase
+      .from('predictions')
+      .select('*', { count: 'exact', head: true })
+      .eq('player_name', currentPlayer.name)
+      .not('home_score', 'is', null)
+    setTotalDone(count ?? 0)
   }
 
-  const stages = [...new Set(matches.map(m => m.stage))]
-  const stageMatches = matches.filter(m => m.stage === activeStage)
-  const filledCount = Object.values(preds).filter(v => v.home !== '' && v.away !== '').length
+  const groupComplete = matches.length > 0 &&
+    matches.every(m => scores[m.id]?.home !== '' && scores[m.id]?.away !== '')
+  const groupDone = matches.filter(m => scores[m.id]?.home !== '' && scores[m.id]?.away !== '').length
 
-  if (step === 'name') return (
-    <div className="max-w-md mx-auto px-4 py-16">
-      <div className="card text-center space-y-5">
-        <div className="text-5xl">✏️</div>
-        <h1 className="text-2xl font-black">Enter Your Name</h1>
-        <p className="text-gray-500 text-sm">
-          If you've predicted before, entering the same name loads your existing predictions.
-        </p>
-        <form onSubmit={handleNameSubmit} className="space-y-3">
-          <input
-            className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 text-lg focus:border-brand focus:outline-none"
-            placeholder="Your name..."
-            value={nameInput}
-            onChange={e => setNameInput(e.target.value)}
-            maxLength={50}
-            autoFocus
-          />
-          {error && <p className="text-red-600 text-sm">{error}</p>}
-          <button type="submit" disabled={!nameInput.trim() || saving} className="btn-primary w-full py-3 text-base">
-            {saving ? 'Loading…' : 'Continue →'}
-          </button>
-        </form>
-      </div>
-    </div>
-  )
-
-  if (step === 'done') return (
-    <div className="max-w-md mx-auto px-4 py-16">
-      <div className="card text-center space-y-4">
-        <div className="text-6xl">🎉</div>
-        <h2 className="text-2xl font-black">Predictions Saved!</h2>
-        <p className="text-gray-600">
-          <span className="font-semibold text-brand">{filledCount}</span> match predictions saved for <span className="font-semibold">{participant?.name}</span>.
-        </p>
-        <p className="text-sm text-gray-500">
-          Send your completed file to Sam via Email or Teams before<br />
-          <span className="font-semibold">Tuesday 10 June 2026, 20:00</span>
-        </p>
-        <div className="flex gap-3 justify-center pt-2">
-          <button onClick={() => setStep('form')} className="btn-secondary">Edit Predictions</button>
-          <a href="/leaderboard" className="btn-primary">View Leaderboard</a>
-        </div>
-      </div>
-    </div>
-  )
+  const groupTeams = [...new Set(matches.flatMap(m => [m.home_team, m.away_team]))].slice(0, 4)
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-3xl mx-auto px-4 py-6 space-y-6">
-
+    <div className="max-w-4xl mx-auto px-6 py-8 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex justify-between items-start gap-8 flex-wrap">
         <div>
-          <h1 className="text-2xl font-black">Your Predictions</h1>
-          <p className="text-gray-500 text-sm mt-0.5">
-            Predicting as <span className="font-semibold text-gray-800">{participant?.name}</span>
-            {' · '}{filledCount} / {matches.length} filled
-          </p>
+          <p className="eyebrow mb-2">GROUP STAGE · FAST ENTRY</p>
+          <h1 className="font-display font-black text-4xl sm:text-5xl tracking-tight">
+            Predict the fixtures
+          </h1>
         </div>
-        {isLocked() ? (
-          <span className="bg-red-100 text-red-700 text-xs font-semibold px-3 py-1.5 rounded-full">🔒 Locked</span>
-        ) : (
-          <button type="submit" disabled={saving} className="btn-primary">
-            {saving ? 'Saving…' : '💾 Save'}
-          </button>
-        )}
+        <div className="text-right">
+          <p className="text-sm text-muted mb-2">Group games predicted</p>
+          <p className="font-display font-bold text-text text-2xl mb-3">{totalDone}/72</p>
+          <div className="w-40 h-1 bg-surface-3 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-pink via-orange-500 to-gold transition-all"
+              style={{ width: `${(totalDone / 72) * 100}%` }}
+            />
+          </div>
+        </div>
       </div>
 
-      {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{error}</div>}
+      {/* Group tabs */}
+      <div className="flex gap-2 overflow-x-auto pb-2">
+        {allGroups.map(g => {
+          const groupMatches = matches.filter(m => m.group_id === g)
+          const groupDoneCnt = groupMatches.filter(m => scores[m.id]?.home !== '' && scores[m.id]?.away !== '').length
+          const isGroupComplete = groupMatches.length > 0 && groupDoneCnt === groupMatches.length
 
-      {/* Scoring reminder */}
-      <div className="flex gap-3 text-xs flex-wrap">
-        <span className="badge-exact px-3 py-1">⭐ 3 pts — Exact score</span>
-        <span className="badge-correct px-3 py-1">✔ 1 pt — Correct result</span>
-        <span className="badge-wrong px-3 py-1">✖ 0 pts — Wrong</span>
-      </div>
-
-      {/* Stage tabs */}
-      <div className="flex gap-1.5 flex-wrap">
-        {stages.map(stage => {
-          const stageCount = matches.filter(m => m.stage === stage).length
-          const filled = matches.filter(m => m.stage === stage && preds[m.id]?.home !== '' && preds[m.id]?.away !== '').length
-          const done = filled === stageCount
           return (
             <button
-              key={stage}
-              type="button"
-              onClick={() => setActiveStage(stage)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all
-                ${activeStage === stage
-                  ? 'text-white shadow-sm'
-                  : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'}`}
-              style={activeStage === stage ? { background: STAGE_COLORS[stage], borderColor: STAGE_COLORS[stage] } : {}}
+              key={g}
+              onClick={() => setActiveGroup(g)}
+              className={`relative w-12 h-12 rounded-xl font-display font-bold text-lg transition-all flex-shrink-0
+                ${activeGroup === g
+                  ? 'bg-sunset text-black shadow-lg shadow-gold/30'
+                  : 'bg-surface-2 text-muted border border-surface-3 hover:text-text'}`}
             >
-              {stage} {done ? '✓' : `${filled}/${stageCount}`}
+              {g}
+              {isGroupComplete && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-green flex items-center justify-center text-xs text-black">✓</span>
+              )}
             </button>
           )
         })}
       </div>
 
-      {/* Match cards */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-3 px-4 py-2 rounded-lg font-bold text-white text-sm"
-             style={{ background: STAGE_COLORS[activeStage] }}>
-          {activeStage}
+      {/* Group info */}
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="flex items-center gap-4">
+          <p className="tag">Group {activeGroup}</p>
+          <p className="text-sm text-muted">Round-robin · {matches.length} matches</p>
         </div>
-        {stageMatches.map(match => {
-          const pred = preds[match.id] ?? { home: '', away: '' }
-          const locked = isLocked() || !match.is_open
-          let ptsBadge = null
-          if (match.home_score != null && pred.home !== '' && pred.away !== '') {
-            const pts = calcPoints(Number(pred.home), Number(pred.away), match.home_score, match.away_score)
-            if (pts === 3) ptsBadge = <span className="badge-exact">⭐ 3pts</span>
-            else if (pts === 1) ptsBadge = <span className="badge-correct">✔ 1pt</span>
-            else if (pts === 0) ptsBadge = <span className="badge-wrong">✖ 0pts</span>
-          }
-          return (
-            <div key={match.id} className="bg-white border border-gray-100 rounded-xl px-4 py-3 flex items-center gap-3 shadow-sm">
-              <span className="text-xs text-gray-400 w-12 text-center font-mono">#{match.match_num}<br/>{match.match_date}</span>
-              <div className="flex-1 flex items-center gap-3 justify-end min-w-0">
-                <span className="text-sm font-semibold text-right truncate">
-                  {flag(match.home_team)} {match.home_team}
-                </span>
-                <input type="number" min="0" max="99"
-                  className="score-input" placeholder="?" disabled={locked}
-                  value={pred.home} onChange={e => setScore(match.id, 'home', e.target.value)} />
-                <span className="text-gray-300 font-bold">—</span>
-                <input type="number" min="0" max="99"
-                  className="score-input" placeholder="?" disabled={locked}
-                  value={pred.away} onChange={e => setScore(match.id, 'away', e.target.value)} />
-                <span className="text-sm font-semibold truncate">
-                  {match.away_team} {flag(match.away_team)}
-                </span>
-              </div>
-              <div className="w-20 text-right">
-                {match.home_score != null
-                  ? <span className="text-xs text-gray-400 font-mono">{match.home_score}–{match.away_score}</span>
-                  : null}
-                {ptsBadge}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-
-      {/* Tiebreakers — show only on last group stage tab */}
-      {activeStage === stages[stages.length - 1] && (
-        <div className="card space-y-5">
-          <h3 className="font-bold text-base">🔀 Tiebreaker Questions</h3>
-          <p className="text-sm text-gray-500">
-            Only used if two or more players are level on points at the top — closest answer wins.
-          </p>
-          {TIEBREAKERS.map(({ key, q, placeholder }) => (
-            <div key={key} className="space-y-1.5">
-              <label className="text-sm font-medium text-gray-700">{q}</label>
-              <input
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-brand focus:outline-none"
-                placeholder={placeholder}
-                value={tbs[key]}
-                disabled={isLocked()}
-                onChange={e => setTbs(t => ({ ...t, [key]: e.target.value }))}
-              />
+        <div className="flex gap-2 flex-wrap">
+          {groupTeams.map(code => (
+            <div key={code} className="flex items-center gap-2 px-3 py-1 rounded-full bg-surface-2 text-sm font-display font-bold">
+              <span className="text-base">{code}</span>
             </div>
           ))}
         </div>
-      )}
+      </div>
 
-      {/* Save button */}
-      {!isLocked() && (
-        <div className="sticky bottom-4 flex justify-end">
-          <button type="submit" disabled={saving} className="btn-primary px-8 py-3 text-base shadow-lg">
-            {saving ? 'Saving…' : `💾 Save Predictions (${filledCount}/${matches.length})`}
-          </button>
-        </div>
-      )}
+      {/* Matches */}
+      <div className="bg-surface border border-surface-3 rounded-2xl overflow-hidden">
+        {matches.length === 0 ? (
+          <div className="p-12 text-center text-faint">Loading fixtures...</div>
+        ) : (
+          matches.map(match => {
+            const kickoff = match.kickoff ? new Date(match.kickoff) : null
+            const dateStr = kickoff?.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+            const timeStr = kickoff?.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
 
-    </form>
+            return (
+              <div
+                key={match.id}
+                className="flex items-center gap-4 px-6 py-5 border-t border-surface-3 first:border-t-0"
+              >
+                {/* Date/time */}
+                <div className="text-sm min-w-fit">
+                  <div className="font-medium text-text">{dateStr}</div>
+                  <div className="text-xs text-muted mt-0.5">{timeStr} · {match.venue}</div>
+                </div>
+
+                {/* Home team */}
+                <div className="text-right flex-1">
+                  <div className="font-display font-bold text-text">{match.home_team}</div>
+                </div>
+
+                {/* Score inputs */}
+                <div className="flex items-center gap-2">
+                  {/* Home score */}
+                  <div className="flex flex-col items-center gap-1">
+                    <input
+                      type="number"
+                      min="0"
+                      max="12"
+                      value={scores[match.id]?.home ?? ''}
+                      onChange={e => setScore(match.id, 'home', e.target.value)}
+                      disabled={locked}
+                      className="score-input text-center w-12"
+                    />
+                    <div className="flex gap-0.5">
+                      {['-', '+'].map(op => (
+                        <button
+                          key={op}
+                          onClick={() => {
+                            const cur = scores[match.id]?.home ?? 0
+                            const next = op === '+' ? Math.min(12, cur + 1) : Math.max(0, cur - 1)
+                            setScore(match.id, 'home', next)
+                          }}
+                          disabled={locked}
+                          className="w-5 h-5 rounded text-xs bg-surface-3 text-muted hover:bg-surface-2 hover:text-text disabled:opacity-40"
+                        >
+                          {op}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Dash */}
+                  <div className="text-muted font-display font-black text-lg mx-2 pb-4">–</div>
+
+                  {/* Away score */}
+                  <div className="flex flex-col items-center gap-1">
+                    <input
+                      type="number"
+                      min="0"
+                      max="12"
+                      value={scores[match.id]?.away ?? ''}
+                      onChange={e => setScore(match.id, 'away', e.target.value)}
+                      disabled={locked}
+                      className="score-input text-center w-12"
+                    />
+                    <div className="flex gap-0.5">
+                      {['-', '+'].map(op => (
+                        <button
+                          key={op}
+                          onClick={() => {
+                            const cur = scores[match.id]?.away ?? 0
+                            const next = op === '+' ? Math.min(12, cur + 1) : Math.max(0, cur - 1)
+                            setScore(match.id, 'away', next)
+                          }}
+                          disabled={locked}
+                          className="w-5 h-5 rounded text-xs bg-surface-3 text-muted hover:bg-surface-2 hover:text-text disabled:opacity-40"
+                        >
+                          {op}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Away team */}
+                <div className="text-left flex-1">
+                  <div className="font-display font-bold text-text">{match.away_team}</div>
+                </div>
+              </div>
+            )
+          })
+        )}
+      </div>
+
+      {/* Footer bar */}
+      <div className="flex items-center justify-between gap-4 flex-wrap pb-8">
+        <p className="text-sm text-muted">
+          <span className={`font-bold ${groupComplete ? 'text-green' : 'text-text'}`}>{groupDone}/{matches.length}</span>
+          {' '}in Group {activeGroup}
+          {groupComplete && <span className="text-green ml-2">· complete ✓</span>}
+        </p>
+        {!locked && (
+          <div className="flex gap-3">
+            <button className="btn-secondary text-sm">Auto-fill 1–0</button>
+            <button
+              onClick={saveGroup}
+              disabled={saving}
+              className="btn-primary text-sm"
+            >
+              {saving ? 'Saving…' : saved ? `Saved ✓` : `Save Group ${activeGroup} →`}
+            </button>
+          </div>
+        )}
+        {locked && <p className="text-sm text-pink">Predictions are locked.</p>}
+      </div>
+    </div>
   )
 }
