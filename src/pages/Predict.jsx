@@ -122,7 +122,10 @@ export default function Predict({ currentPlayer }) {
         return
       }
 
+      console.log('Edge function response:', response)
       const predictionsList = response.data?.predictions
+      console.log('Predictions list:', predictionsList)
+
       if (!predictionsList || !Array.isArray(predictionsList)) {
         setAiError('Invalid response format from AI service. Please try again.')
         return
@@ -135,7 +138,8 @@ export default function Predict({ currentPlayer }) {
 
       // Transform response format from edge function to app format
       const predictions = {}
-      predictionsList.forEach(pred => {
+      predictionsList.forEach((pred, idx) => {
+        console.log(`Prediction ${idx}:`, pred)
         predictions[pred.match_id] = {
           home: pred.home || '',
           away: pred.away || '',
