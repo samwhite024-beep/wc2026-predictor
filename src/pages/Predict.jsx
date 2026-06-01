@@ -141,8 +141,8 @@ export default function Predict({ currentPlayer }) {
       predictionsList.forEach((pred, idx) => {
         console.log(`Prediction ${idx}:`, pred)
         predictions[pred.match_id] = {
-          home: pred.home || '',
-          away: pred.away || '',
+          home: pred.home !== undefined && pred.home !== null ? pred.home : '',
+          away: pred.away !== undefined && pred.away !== null ? pred.away : '',
         }
       })
 
