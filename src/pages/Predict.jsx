@@ -193,24 +193,25 @@ export default function Predict({ currentPlayer }) {
 
   const confirmSubmitGroup = () => {
     const filledCount = matches.filter(m => scores[m.id]?.home !== '' && scores[m.id]?.away !== '').length
+    const missingCount = matches.length - filledCount
 
     if (filledCount === 0) {
       setMessage({
         type: 'error',
-        text: `No predictions to submit. Fill in at least one match in Group ${activeGroup}.`,
+        text: `Cannot submit: All ${matches.length} matches need predictions. Please enter predictions for all matches in Group ${activeGroup}.`,
         visible: true,
       })
-      setTimeout(() => setMessage(prev => ({ ...prev, visible: false })), 4000)
+      setTimeout(() => setMessage(prev => ({ ...prev, visible: false })), 5000)
       return
     }
 
     if (filledCount < matches.length) {
       setMessage({
         type: 'error',
-        text: `Please complete all ${matches.length} matches in Group ${activeGroup} before submitting.`,
+        text: `Cannot submit: ${missingCount} match${missingCount > 1 ? 'es' : ''} missing predictions. Please enter predictions for all ${matches.length} matches in Group ${activeGroup}.`,
         visible: true,
       })
-      setTimeout(() => setMessage(prev => ({ ...prev, visible: false })), 4000)
+      setTimeout(() => setMessage(prev => ({ ...prev, visible: false })), 5000)
       return
     }
 
