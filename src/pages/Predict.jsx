@@ -101,16 +101,14 @@ export default function Predict({ currentPlayer }) {
         return
       }
 
-      const matchesToPredict = roundMatches.map(m => ({
-        id: m.id,
-        home_team: m.home_team,
-        away_team: m.away_team,
-      }))
+      const matchList = roundMatches.map((m, idx) =>
+        `${idx + 1}. ${m.home_team} vs ${m.away_team}`
+      ).join('\n')
 
       const response = await supabase.functions.invoke('ai-predict', {
         body: {
           context: aiContext,
-          matches: matchesToPredict,
+          matchList: matchList,
         },
       })
 
@@ -119,20 +117,31 @@ export default function Predict({ currentPlayer }) {
         return
       }
 
-      const predictions = response.data?.predictions
-      if (!predictions || typeof predictions !== 'object') {
+      const predictionsList = response.data?.predictions
+      if (!predictionsList || !Array.isArray(predictionsList)) {
         setAiError('Invalid response format from AI service. Please try again.')
         return
       }
 
-      const predictionCount = Object.keys(predictions).length
-      if (predictionCount === 0) {
+      if (predictionsList.length === 0) {
         setAiError('No predictions returned. Please check your context and try again.')
         return
       }
 
-      if (predictionCount < matchesToPredict.length) {
-        setAiError(`⚠️ Partial predictions: Only ${predictionCount}/${matchesToPredict.length} matches predicted. Your edge function may have timed out. Fill in remaining matches manually.`)
+      // Transform response format from edge function to app format
+      const predictions = {}
+      predictionsList.forEach(pred => {
+        predictions[pred.match_id] = {
+          home: pred.home || '',
+          away: pred.away || '',
+        }
+      })
+
+      const predictionCount = predictionsList.length
+      const expectedCount = roundMatches.length
+
+      if (predictionCount < expectedCount) {
+        setAiError(`⚠️ Partial predictions: Only ${predictionCount}/${expectedCount} matches predicted. Fill in remaining matches manually.`)
         setTimeout(() => setAiError(''), 6000)
       }
 
@@ -142,7 +151,7 @@ export default function Predict({ currentPlayer }) {
       }))
       setAiContext('')
 
-      if (predictionCount === matchesToPredict.length) {
+      if (predictionCount === expectedCount) {
         setMessage({
           type: 'success',
           text: `✓ AI predicted all ${predictionCount} matches`,
