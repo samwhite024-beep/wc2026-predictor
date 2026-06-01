@@ -61,45 +61,42 @@ export default function Home({ currentPlayer, setCurrentPlayer }) {
     )
   }
 
-  const [nextMatch, setNextMatch] = useState(null)
   const [standing, setStanding] = useState(null)
   const [progress, setProgress] = useState({ done: 0, total: 72 })
   const [lastResult, setLastResult] = useState(null)
+  const [leaderboard, setLeaderboard] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [sortKey, setSortKey] = useState('rank')
+  const [sortAsc, setSortAsc] = useState(true)
   const countdown = useCountdown(DEADLINE)
 
   // Fetch data
   useEffect(() => {
     const fetchData = async () => {
-      // Next match
-      const { data: matches } = await supabase
-        .from('matches')
-        .select('*')
-        .is('home_score', null)
-        .like('stage', 'Group%')
-        .order('match_date', { ascending: true })
-        .limit(1)
-      if (matches?.[0]) {
-        const m = matches[0]
-        setNextMatch({
-          home: m.home_team,
-          away: m.away_team,
-          kickoff: m.match_date,
-          venue: '',
-          group: m.stage,
-        })
-      }
+      setLoading(true)
 
-      // Standing
+      // Leaderboard
       const { data: board } = await supabase
         .from('leaderboard')
-        .select('name, total_points, rank')
-        .eq('name', currentPlayer.name)
-        .single()
+        .select('*')
+        .order('total_points', { ascending: false })
       if (board) {
-        setStanding({
-          rank: board.rank,
-          pts: board.total_points,
-        })
+        const withRank = board.map((row, i) => ({
+          ...row,
+          rank: i + 1,
+          total_predictions: row.predictions_made,
+          missed: row.wrong,
+        }))
+        setLeaderboard(withRank)
+
+        // Find current player's standing
+        const playerRow = withRank.find(r => r.name === currentPlayer.name)
+        if (playerRow) {
+          setStanding({
+            rank: playerRow.rank,
+            pts: playerRow.total_points,
+          })
+        }
       }
 
       // Get participant ID for progress
@@ -123,11 +120,10 @@ export default function Home({ currentPlayer, setCurrentPlayer }) {
         .from('matches')
         .select('home_team, away_team, home_score, away_score')
         .not('home_score', 'is', null)
-        .order('kickoff', { ascending: false })
+        .order('match_date', { ascending: false })
         .limit(1)
       if (results?.[0]) {
         const r = results[0]
-        // TODO: fetch player's prediction for this match
         setLastResult({
           home: r.home_team,
           away: r.away_team,
@@ -135,9 +131,27 @@ export default function Home({ currentPlayer, setCurrentPlayer }) {
           awayScore: r.away_score,
         })
       }
+
+      setLoading(false)
     }
     fetchData()
   }, [currentPlayer?.name])
+
+  const toggleSort = (key) => {
+    if (sortKey === key) {
+      setSortAsc(!sortAsc)
+    } else {
+      setSortKey(key)
+      setSortAsc(false)
+    }
+  }
+
+  const sorted = [...leaderboard].sort((a, b) => {
+    if (sortKey === 'rank') return sortAsc ? a.rank - b.rank : b.rank - a.rank
+    const ak = a[sortKey] ?? 0
+    const bk = b[sortKey] ?? 0
+    return sortAsc ? ak - bk : bk - ak
+  })
 
   const ordinal = (n) => {
     if (n === 1) return 'st'
@@ -146,10 +160,30 @@ export default function Home({ currentPlayer, setCurrentPlayer }) {
     return 'th'
   }
 
+  const getMedalEmoji = (rank) => {
+    if (rank === 1) return '🥇'
+    if (rank === 2) return '🥈'
+    if (rank === 3) return '🥉'
+    return ''
+  }
+
+  const SortHeader = ({ label, col }) => {
+    const active = sortKey === col
+    return (
+      <button
+        onClick={() => toggleSort(col)}
+        className={`px-3 py-2.5 text-left text-xs font-bold uppercase tracking-widest transition-colors
+          ${active ? 'text-gold' : 'text-faint hover:text-muted'}`}
+      >
+        {label} {active ? (sortAsc ? '↑' : '↓') : ''}
+      </button>
+    )
+  }
+
   return (
-    <div className="max-w-7xl mx-auto px-6 py-8">
+    <div className="max-w-7xl mx-auto px-6 py-8 space-y-6">
       {/* Header */}
-      <div className="mb-8">
+      <div>
         <p className="eyebrow mb-2">WORLD CUP · 2026</p>
         <h1 className="font-display font-black text-4xl sm:text-5xl tracking-tight mb-1">
           Welcome back, {currentPlayer.name.split(' ')[0]}.
@@ -157,8 +191,8 @@ export default function Home({ currentPlayer, setCurrentPlayer }) {
         <p className="text-muted">Make your predictions before the deadline</p>
       </div>
 
-      {/* Main grid: 3 columns on desktop, 1 on mobile */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      {/* Dashboard Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Progress Card */}
         <div className="card">
           <p className="eyebrow mb-3">YOUR PROGRESS</p>
@@ -166,7 +200,7 @@ export default function Home({ currentPlayer, setCurrentPlayer }) {
             <div>
               <div className="flex items-baseline gap-2 mb-2">
                 <span className="font-display font-black text-3xl text-gold">{progress.done}</span>
-                <span className="text-sm text-muted">of {progress.total} predictions</span>
+                <span className="text-sm text-muted">of {progress.total}</span>
               </div>
               <div className="w-full h-2 bg-surface-3 rounded-full overflow-hidden">
                 <div
@@ -184,37 +218,20 @@ export default function Home({ currentPlayer, setCurrentPlayer }) {
         {/* Standing Card */}
         <div className="card">
           <p className="eyebrow mb-3">YOUR STANDING</p>
-          <div>
-            <div className="font-display font-black text-4xl gradient-text mb-2">
-              {standing?.rank ? `${standing.rank}${ordinal(standing.rank)}` : '—'}
-            </div>
-            <p className="text-sm text-muted">{standing?.pts ?? 0} points</p>
+          <div className="font-display font-black text-4xl gradient-text mb-2">
+            {standing?.rank ? `${standing.rank}${ordinal(standing.rank)}` : '—'}
           </div>
+          <p className="text-sm text-muted">{standing?.pts ?? 0} points</p>
         </div>
 
         {/* Countdown Card */}
         <div className="card">
-          <p className="eyebrow mb-3">LOCKS IN</p>
-          <div className="space-y-2">
-            <div className="font-display font-black text-2xl text-gold">
-              {String(countdown.days).padStart(2, '0')}d {String(countdown.hours).padStart(2, '0')}h
-            </div>
-            <p className="text-xs text-muted">Tue 10 Jun · 20:00</p>
+          <p className="eyebrow mb-3">DEADLINE</p>
+          <div className="font-display font-black text-2xl text-gold mb-2">
+            {String(countdown.days).padStart(2, '0')}d {String(countdown.hours).padStart(2, '0')}h
           </div>
+          <p className="text-xs text-muted">Tue 10 Jun · 20:00</p>
         </div>
-
-        {/* Next Match Card (compact) */}
-        {nextMatch && (
-          <div className="card">
-            <p className="eyebrow mb-3">NEXT MATCH</p>
-            <div className="space-y-2">
-              <div className="text-sm">
-                <div className="text-muted text-xs mb-1">{nextMatch.group}</div>
-                <div className="font-display font-bold text-sm">{nextMatch.home} vs {nextMatch.away}</div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Last result (if exists) */}
@@ -230,6 +247,68 @@ export default function Home({ currentPlayer, setCurrentPlayer }) {
           </div>
         </div>
       )}
+
+      {/* Leaderboard */}
+      <div>
+        <h2 className="font-display font-black text-3xl mb-4">Leaderboard</h2>
+        <div className="bg-surface border border-surface-3 rounded-2xl overflow-hidden">
+          {loading ? (
+            <div className="p-12 text-center text-faint">Loading...</div>
+          ) : (
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-surface-3">
+                  <th className="px-4 py-3 text-left text-xs font-bold text-faint uppercase tracking-widest w-12">#</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-faint uppercase tracking-widest">Player</th>
+                  <SortHeader label="P" col="total_predictions" />
+                  <SortHeader label="Exact" col="exact_scores" />
+                  <SortHeader label="Correct" col="correct_results" />
+                  <SortHeader label="Pts" col="total_points" />
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map((row) => {
+                  const isYou = row.name === currentPlayer?.name
+                  return (
+                    <tr
+                      key={row.id}
+                      className={`border-t border-surface-3 transition-colors
+                        ${isYou ? 'bg-surface-2' : 'hover:bg-surface-2/50'}`}
+                    >
+                      <td className="px-4 py-3 font-bold text-lg text-gold">
+                        {getMedalEmoji(row.rank) || row.rank}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0
+                            ${isYou
+                              ? 'bg-gradient-to-br from-pink via-orange-500 to-gold text-black'
+                              : 'bg-surface-3 text-muted'}`}>
+                            {row.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+                          </div>
+                          <div className="text-sm">
+                            <div className={`font-medium ${isYou ? 'text-gold' : 'text-text'}`}>
+                              {row.name}
+                              {isYou && <span className="text-xs text-muted ml-1">· you</span>}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 text-right text-sm text-muted tabular-nums">{row.total_predictions ?? 0}</td>
+                      <td className="px-3 py-3 text-right text-sm font-medium text-green tabular-nums">{row.exact_scores ?? 0}</td>
+                      <td className="px-3 py-3 text-right text-sm text-gold tabular-nums">{row.correct_results ?? 0}</td>
+                      <td className="px-4 py-3 text-right font-display font-bold text-lg tabular-nums"
+                        style={{ color: isYou || row.rank === 1 ? '#FFC23D' : '#F4F1EA' }}>
+                        {row.total_points ?? 0}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
