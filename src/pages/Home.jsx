@@ -25,12 +25,6 @@ function useCountdown(target) {
 }
 
 export default function Home({ currentPlayer, setCurrentPlayer }) {
-  const [nextMatch, setNextMatch] = useState(null)
-  const [standing, setStanding] = useState(null)
-  const [progress, setProgress] = useState({ done: 0, total: 72 })
-  const [lastResult, setLastResult] = useState(null)
-  const countdown = useCountdown(DEADLINE)
-
   // Name entry screen
   if (!currentPlayer) {
     return (
@@ -66,6 +60,12 @@ export default function Home({ currentPlayer, setCurrentPlayer }) {
       </div>
     )
   }
+
+  const [nextMatch, setNextMatch] = useState(null)
+  const [standing, setStanding] = useState(null)
+  const [progress, setProgress] = useState({ done: 0, total: 72 })
+  const [lastResult, setLastResult] = useState(null)
+  const countdown = useCountdown(DEADLINE)
 
   // Fetch data
   useEffect(() => {
