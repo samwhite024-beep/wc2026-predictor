@@ -85,20 +85,20 @@ export default function Admin() {
   }
 
   if (!authed) return (
-    <div className="max-w-sm mx-auto px-4 py-20">
-      <div className="card text-center space-y-5">
+    <div className="min-h-[calc(100vh-64px)] flex items-center justify-center px-4 py-12">
+      <div className="card text-center space-y-5 max-w-sm">
         <div className="text-5xl">🔐</div>
-        <h2 className="text-xl font-black">Admin Access</h2>
+        <h2 className="font-display font-black text-2xl">Admin Access</h2>
         <form onSubmit={handlePin} className="space-y-3">
           <input
             type="password"
-            className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 text-lg text-center tracking-widest focus:border-brand focus:outline-none"
+            className="w-full border-2 border-surface-3 rounded-lg px-4 py-3 text-lg text-center tracking-widest bg-surface-2 text-text placeholder-muted focus:border-gold focus:outline-none"
             placeholder="Enter PIN"
             value={pin}
             onChange={e => setPin(e.target.value)}
             autoFocus
           />
-          {pinErr && <p className="text-red-600 text-sm">{pinErr}</p>}
+          {pinErr && <p className="text-pink text-sm">{pinErr}</p>}
           <button type="submit" className="btn-primary w-full py-3">Enter</button>
         </form>
       </div>
@@ -118,58 +118,59 @@ export default function Admin() {
   ]
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+    <div className="max-w-6xl mx-auto px-6 py-8 space-y-6">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl font-black">⚙️ Admin Dashboard</h1>
-          <p className="text-gray-500 text-sm">Enter results · Points auto-calculate for all {lb.length} players</p>
+          <p className="eyebrow mb-2">ADMINISTRATION</p>
+          <h1 className="font-display font-black text-4xl">Admin Dashboard</h1>
+          <p className="text-muted text-sm mt-1">Enter results · Points auto-calculate for all {lb.length} players</p>
         </div>
         <button onClick={() => { sessionStorage.removeItem('admin_auth'); setAuthed(false) }}
-          className="text-xs text-gray-400 hover:text-gray-600 underline">Log out</button>
+          className="text-xs text-muted hover:text-text underline">Log out</button>
       </div>
 
       {flash && (
-        <div className="bg-green-50 border border-green-200 text-green-800 rounded-lg px-4 py-3 text-sm font-medium">
+        <div className="bg-green/20 border border-green text-green rounded-lg px-4 py-3 text-sm font-medium">
           {flash}
         </div>
       )}
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {statCards.map(({ icon, label, value, sub }) => (
           <div key={label} className="card text-center py-4">
-            <div className="text-2xl mb-1">{icon}</div>
-            <div className="text-xl font-black text-brand">{value}</div>
-            {sub && <div className="text-xs text-gray-400">{sub}</div>}
-            <div className="text-xs text-gray-500 mt-0.5">{label}</div>
+            <div className="text-3xl mb-2">{icon}</div>
+            <div className="font-display font-black text-2xl text-gold">{value}</div>
+            {sub && <div className="text-xs text-muted mt-1">{sub}</div>}
+            <div className="text-xs text-faint mt-2 uppercase tracking-widest font-bold">{label}</div>
           </div>
         ))}
       </div>
 
       {/* Mini leaderboard */}
       <div className="card">
-        <h3 className="font-bold mb-3">Live Leaderboard</h3>
+        <p className="eyebrow mb-4">LIVE LEADERBOARD</p>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-xs text-gray-500 border-b">
+              <tr className="text-xs text-faint font-bold uppercase tracking-widest border-b border-surface-3">
                 {['#','Player','Pts','Exact','Correct','Wrong','Predicted'].map(h => (
-                  <th key={h} className="px-3 py-2 text-center first:text-left font-semibold">{h}</th>
+                  <th key={h} className="px-3 py-3 text-center first:text-left">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {lb.slice(0, 10).map((p, i) => (
-                <tr key={p.id} className="border-t border-gray-50 hover:bg-gray-50">
-                  <td className="px-3 py-2 font-bold">{['🥇','🥈','🥉'][i] ?? i+1}</td>
-                  <td className="px-3 py-2 font-semibold">{p.name}</td>
-                  <td className="px-3 py-2 text-center font-black text-brand">{p.total_points}</td>
-                  <td className="px-3 py-2 text-center text-green-700">{p.exact_scores}</td>
-                  <td className="px-3 py-2 text-center text-amber-600">{p.correct_results}</td>
-                  <td className="px-3 py-2 text-center text-red-500">{p.wrong}</td>
-                  <td className="px-3 py-2 text-center text-gray-400">{p.predictions_made}</td>
+                <tr key={p.id} className="border-t border-surface-3 hover:bg-surface-2/50">
+                  <td className="px-3 py-3 font-bold text-gold">{['🥇','🥈','🥉'][i] ?? i+1}</td>
+                  <td className="px-3 py-3 font-semibold text-text">{p.name}</td>
+                  <td className="px-3 py-3 text-center font-black text-gold">{p.total_points}</td>
+                  <td className="px-3 py-3 text-center text-green">{p.exact_scores}</td>
+                  <td className="px-3 py-3 text-center text-gold">{p.correct_results}</td>
+                  <td className="px-3 py-3 text-center text-pink">{p.wrong}</td>
+                  <td className="px-3 py-3 text-center text-muted">{p.predictions_made}</td>
                 </tr>
               ))}
             </tbody>
@@ -178,20 +179,20 @@ export default function Admin() {
       </div>
 
       {/* Result entry */}
-      <div className="space-y-3">
-        <h3 className="font-bold text-lg">Enter Match Results</h3>
+      <div className="space-y-4">
+        <h2 className="font-display font-black text-3xl">Enter Match Results</h2>
 
         {/* Stage tabs */}
-        <div className="flex gap-1.5 flex-wrap">
+        <div className="flex gap-2 flex-wrap">
           {stages.map(stage => {
             const stageMs = matches.filter(m => m.stage === stage)
             const played  = stageMs.filter(m => m.home_score != null).length
             const isOpen  = stageMs[0]?.is_open
             return (
               <button key={stage} type="button" onClick={() => setActive(stage)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all
-                  ${activeStage === stage ? 'text-white shadow-sm' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'}`}
-                style={activeStage === stage ? { background: STAGE_COLORS[stage], borderColor: STAGE_COLORS[stage] } : {}}>
+                className={`px-4 py-2.5 rounded-xl text-sm font-bold tracking-widest transition-all
+                  ${activeStage === stage ? 'text-black shadow-lg shadow-gold/30' : 'bg-surface-2 text-muted border border-surface-3 hover:text-text'}`}
+                style={activeStage === stage ? { background: 'linear-gradient(115deg, #FF4D74 0%, #FF7A2F 46%, #F7A50A 100%)' } : {}}>
                 {stage} ({played}/{stageMs.length}) {isOpen ? '🔓' : '🔒'}
               </button>
             )
@@ -202,29 +203,29 @@ export default function Admin() {
         {activeStage && (
           <div className="flex items-center gap-3">
             {stageMatches[0]?.is_open ? (
-              <button onClick={() => toggleRound(activeStage, false)} className="btn-secondary text-xs px-3 py-1.5">
-                🔒 Close predictions for {activeStage}
+              <button onClick={() => toggleRound(activeStage, false)} className="btn-secondary text-sm">
+                🔒 Close {activeStage}
               </button>
             ) : (
-              <button onClick={() => toggleRound(activeStage, true)} className="btn-primary text-xs px-3 py-1.5">
-                🔓 Open predictions for {activeStage}
+              <button onClick={() => toggleRound(activeStage, true)} className="btn-primary text-sm">
+                🔓 Open {activeStage}
               </button>
             )}
           </div>
         )}
 
         {/* Match result rows */}
-        <div className="space-y-2">
+        <div className="space-y-3">
           {stageMatches.map(match => {
             const sc = scores[match.id] ?? { home: '', away: '' }
             const saved = match.home_score != null
             return (
               <div key={match.id}
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl border
-                  ${saved ? 'bg-green-50 border-green-200' : 'bg-white border-gray-100'} shadow-sm`}>
-                <span className="text-xs text-gray-400 w-10 text-center font-mono">#{match.match_num}</span>
+                  ${saved ? 'bg-green/10 border-green' : 'bg-surface border-surface-3'}`}>
+                <span className="text-xs text-faint w-10 text-center font-mono">#{match.match_num}</span>
                 <div className="flex-1 flex items-center gap-2 justify-end min-w-0">
-                  <span className="text-sm font-semibold text-right truncate">
+                  <span className="text-sm font-bold text-right truncate text-text">
                     {flag(match.home_team)} {match.home_team}
                   </span>
                   <input type="number" min="0" max="30"
@@ -232,21 +233,21 @@ export default function Admin() {
                     value={sc.home}
                     onChange={e => setScores(s => ({ ...s, [match.id]: { ...s[match.id], home: e.target.value } }))}
                   />
-                  <span className="text-gray-400 font-bold text-lg">—</span>
+                  <span className="text-muted font-bold text-lg">—</span>
                   <input type="number" min="0" max="30"
                     className="score-input text-base"
                     value={sc.away}
                     onChange={e => setScores(s => ({ ...s, [match.id]: { ...s[match.id], away: e.target.value } }))}
                   />
-                  <span className="text-sm font-semibold truncate">
+                  <span className="text-sm font-bold truncate text-text">
                     {match.away_team} {flag(match.away_team)}
                   </span>
                 </div>
                 <button
                   onClick={() => saveResult(match)}
                   disabled={saving === match.id || sc.home === '' || sc.away === ''}
-                  className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors
-                    ${saved ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-brand text-white hover:bg-brand-dark'}
+                  className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-colors
+                    ${saved ? 'bg-green/20 text-green hover:bg-green/30' : 'bg-sunset text-black hover:shadow-lg hover:shadow-gold/30'}
                     disabled:opacity-40 disabled:cursor-not-allowed`}>
                   {saving === match.id ? '…' : saved ? '✓ Update' : 'Save'}
                 </button>
