@@ -17,6 +17,8 @@ export default function Predict({ currentPlayer }) {
   const [aiError, setAiError] = useState('')
   const [submittedGroups, setSubmittedGroups] = useState(new Set())
   const [submitting, setSubmitting] = useState(false)
+  const [message, setMessage] = useState({ type: '', text: '', visible: false })
+  const [confirmDialog, setConfirmDialog] = useState({ visible: false, groupId: null })
 
   const allGroups = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L']
 
@@ -145,83 +147,6 @@ export default function Predict({ currentPlayer }) {
   const saveGroup = async () => {
     setSaving(true)
 
-    // Get participant ID
-    const { data: participant } = await supabase
-      .from('participants')
-      .select('id')
-      .eq('name', currentPlayer.name)
-      .single()
-
-    if (!participant) return
-
-    const upserts = matches
-      .filter(m => scores[m.id]?.home !== '' && scores[m.id]?.away !== '')
-      .map(m => ({
-        participant_id: participant.id,
-        match_id: m.id,
-        home_pred: scores[m.id].home,
-        away_pred: scores[m.id].away,
-        submitted: false,
-      }))
-
-    if (upserts.length) {
-      await supabase
-        .from('predictions')
-        .upsert(upserts, { onConflict: 'participant_id,match_id' })
-    }
-    setSaving(false)
-    setSaved(true)
-
-    const { count } = await supabase
-      .from('predictions')
-      .select('*', { count: 'exact', head: true })
-      .eq('participant_id', participant.id)
-      .not('home_pred', 'is', null)
-    setTotalDone(count ?? 0)
-  }
-
-  const submitGroup = async () => {
-    setSubmitting(true)
-
-    // Get participant ID
-    const { data: participant } = await supabase
-      .from('participants')
-      .select('id')
-      .eq('name', currentPlayer.name)
-      .single()
-
-    if (!participant) return
-
-    const upserts = matches
-      .filter(m => scores[m.id]?.home !== '' && scores[m.id]?.away !== '')
-      .map(m => ({
-        participant_id: participant.id,
-        match_id: m.id,
-        home_pred: scores[m.id].home,
-        away_pred: scores[m.id].away,
-        submitted: true,
-      }))
-
-    if (upserts.length) {
-      await supabase
-        .from('predictions')
-        .upsert(upserts, { onConflict: 'participant_id,match_id' })
-    }
-
-    setSubmittedGroups(prev => new Set([...prev, activeGroup]))
-    setSubmitting(false)
-    setSaved(true)
-
-    const { count } = await supabase
-      .from('predictions')
-      .select('*', { count: 'exact', head: true })
-      .eq('participant_id', participant.id)
-      .not('home_pred', 'is', null)
-    setTotalDone(count ?? 0)
-  }
-
-  const submitAll = async () => {
-    setSubmitting(true)
     try {
       // Get participant ID
       const { data: participant } = await supabase
@@ -232,38 +157,115 @@ export default function Predict({ currentPlayer }) {
 
       if (!participant) return
 
-      // Get all matches for the round
-      const stages = allGroups.map(g => `Group ${g}`)
-      const { data: roundMatches } = await supabase
-        .from('matches')
-        .select('*')
-        .in('stage', stages)
+      const upserts = matches
+        .filter(m => scores[m.id]?.home !== '' && scores[m.id]?.away !== '')
+        .map(m => ({
+          participant_id: participant.id,
+          match_id: m.id,
+          home_pred: scores[m.id].home,
+          away_pred: scores[m.id].away,
+          submitted: false,
+        }))
 
-      if (roundMatches?.length) {
-        const ids = roundMatches.map(m => m.id)
-        const { data: preds } = await supabase
+      if (upserts.length) {
+        await supabase
           .from('predictions')
-          .select('*')
-          .eq('participant_id', participant.id)
-          .in('match_id', ids)
-
-        if (preds?.length) {
-          const updates = preds.map(p => ({
-            ...p,
-            submitted: true,
-          }))
-          await supabase
-            .from('predictions')
-            .upsert(updates, { onConflict: 'participant_id,match_id' })
-        }
+          .upsert(upserts, { onConflict: 'participant_id,match_id' })
       }
 
-      setSubmittedGroups(new Set(allGroups))
-      setSaved(true)
+      setMessage({
+        type: 'success',
+        text: `✓ Group ${activeGroup} saved as draft`,
+        visible: true,
+      })
+      setTimeout(() => setMessage(prev => ({ ...prev, visible: false })), 3000)
+
+      const { count } = await supabase
+        .from('predictions')
+        .select('*', { count: 'exact', head: true })
+        .eq('participant_id', participant.id)
+        .not('home_pred', 'is', null)
+      setTotalDone(count ?? 0)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const confirmSubmitGroup = () => {
+    const filledCount = matches.filter(m => scores[m.id]?.home !== '' && scores[m.id]?.away !== '').length
+
+    if (filledCount === 0) {
+      setMessage({
+        type: 'error',
+        text: `No predictions to submit. Fill in at least one match in Group ${activeGroup}.`,
+        visible: true,
+      })
+      setTimeout(() => setMessage(prev => ({ ...prev, visible: false })), 4000)
+      return
+    }
+
+    if (filledCount < matches.length) {
+      setMessage({
+        type: 'error',
+        text: `Please complete all ${matches.length} matches in Group ${activeGroup} before submitting.`,
+        visible: true,
+      })
+      setTimeout(() => setMessage(prev => ({ ...prev, visible: false })), 4000)
+      return
+    }
+
+    setConfirmDialog({ visible: true, groupId: activeGroup })
+  }
+
+  const submitGroup = async () => {
+    setSubmitting(true)
+    setConfirmDialog({ visible: false, groupId: null })
+
+    try {
+      // Get participant ID
+      const { data: participant } = await supabase
+        .from('participants')
+        .select('id')
+        .eq('name', currentPlayer.name)
+        .single()
+
+      if (!participant) return
+
+      const upserts = matches
+        .filter(m => scores[m.id]?.home !== '' && scores[m.id]?.away !== '')
+        .map(m => ({
+          participant_id: participant.id,
+          match_id: m.id,
+          home_pred: scores[m.id].home,
+          away_pred: scores[m.id].away,
+          submitted: true,
+        }))
+
+      if (upserts.length) {
+        await supabase
+          .from('predictions')
+          .upsert(upserts, { onConflict: 'participant_id,match_id' })
+      }
+
+      setSubmittedGroups(prev => new Set([...prev, activeGroup]))
+      setMessage({
+        type: 'success',
+        text: `✓ Group ${activeGroup} submitted · Predictions locked`,
+        visible: true,
+      })
+      setTimeout(() => setMessage(prev => ({ ...prev, visible: false })), 3000)
+
+      const { count } = await supabase
+        .from('predictions')
+        .select('*', { count: 'exact', head: true })
+        .eq('participant_id', participant.id)
+        .not('home_pred', 'is', null)
+      setTotalDone(count ?? 0)
     } finally {
       setSubmitting(false)
     }
   }
+
 
   const groupComplete = matches.length > 0 &&
     matches.every(m => scores[m.id] && scores[m.id].home !== '' && scores[m.id].away !== '')
@@ -328,15 +330,6 @@ export default function Predict({ currentPlayer }) {
             {aiError && <p className="text-pink font-medium">{aiError}</p>}
           </div>
 
-          <div className="pt-2 border-t border-gold/20">
-            <button
-              onClick={submitAll}
-              disabled={submitting || submittedGroups.size === allGroups.length}
-              className="btn-primary w-full text-sm"
-            >
-              {submitting ? 'Submitting all…' : submittedGroups.size === allGroups.length ? '✓ All submitted' : '📤 Submit All Groups'}
-            </button>
-          </div>
         </div>
       )}
 
@@ -467,8 +460,8 @@ export default function Predict({ currentPlayer }) {
               {saving ? 'Saving…' : saved ? 'Saved ✓' : '💾 Save Draft'}
             </button>
             <button
-              onClick={submitGroup}
-              disabled={saving || submitting || groupDone === 0}
+              onClick={confirmSubmitGroup}
+              disabled={saving || submitting}
               className="btn-primary text-sm flex-1"
             >
               {submitting ? 'Submitting…' : '📤 Submit Group'}
@@ -483,6 +476,49 @@ export default function Predict({ currentPlayer }) {
         )}
         {locked && <p className="text-sm text-pink">Predictions are locked.</p>}
       </div>
+
+      {/* Message notification */}
+      {message.visible && (
+        <div
+          className={`fixed bottom-6 left-6 right-6 sm:left-auto sm:right-6 sm:w-96 px-4 py-4 rounded-lg font-medium text-sm transition-all ${
+            message.type === 'success'
+              ? 'bg-green/20 border border-green text-green'
+              : 'bg-pink/20 border border-pink text-pink'
+          }`}
+        >
+          {message.text}
+        </div>
+      )}
+
+      {/* Confirm submission dialog */}
+      {confirmDialog.visible && (
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
+          <div className="bg-surface border border-surface-3 rounded-2xl p-6 max-w-sm w-full space-y-4 animate-in slide-in-from-bottom-4">
+            <div>
+              <h3 className="font-display font-bold text-lg mb-2">Submit Group {confirmDialog.groupId}?</h3>
+              <p className="text-sm text-muted">
+                Once you submit, you won't be able to change your predictions for this group. Make sure everything is correct.
+              </p>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => setConfirmDialog({ visible: false, groupId: null })}
+                disabled={submitting}
+                className="btn-secondary text-sm flex-1"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitGroup}
+                disabled={submitting}
+                className="btn-primary text-sm flex-1"
+              >
+                {submitting ? 'Submitting…' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
