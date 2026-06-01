@@ -15,6 +15,8 @@ export default function Predict({ currentPlayer }) {
   const [aiContext, setAiContext] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
+  const [submittedGroups, setSubmittedGroups] = useState(new Set())
+  const [submitting, setSubmitting] = useState(false)
 
   const allGroups = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L']
 
@@ -159,6 +161,7 @@ export default function Predict({ currentPlayer }) {
         match_id: m.id,
         home_pred: scores[m.id].home,
         away_pred: scores[m.id].away,
+        submitted: false,
       }))
 
     if (upserts.length) {
@@ -175,6 +178,91 @@ export default function Predict({ currentPlayer }) {
       .eq('participant_id', participant.id)
       .not('home_pred', 'is', null)
     setTotalDone(count ?? 0)
+  }
+
+  const submitGroup = async () => {
+    setSubmitting(true)
+
+    // Get participant ID
+    const { data: participant } = await supabase
+      .from('participants')
+      .select('id')
+      .eq('name', currentPlayer.name)
+      .single()
+
+    if (!participant) return
+
+    const upserts = matches
+      .filter(m => scores[m.id]?.home !== '' && scores[m.id]?.away !== '')
+      .map(m => ({
+        participant_id: participant.id,
+        match_id: m.id,
+        home_pred: scores[m.id].home,
+        away_pred: scores[m.id].away,
+        submitted: true,
+      }))
+
+    if (upserts.length) {
+      await supabase
+        .from('predictions')
+        .upsert(upserts, { onConflict: 'participant_id,match_id' })
+    }
+
+    setSubmittedGroups(prev => new Set([...prev, activeGroup]))
+    setSubmitting(false)
+    setSaved(true)
+
+    const { count } = await supabase
+      .from('predictions')
+      .select('*', { count: 'exact', head: true })
+      .eq('participant_id', participant.id)
+      .not('home_pred', 'is', null)
+    setTotalDone(count ?? 0)
+  }
+
+  const submitAll = async () => {
+    setSubmitting(true)
+    try {
+      // Get participant ID
+      const { data: participant } = await supabase
+        .from('participants')
+        .select('id')
+        .eq('name', currentPlayer.name)
+        .single()
+
+      if (!participant) return
+
+      // Get all matches for the round
+      const stages = allGroups.map(g => `Group ${g}`)
+      const { data: roundMatches } = await supabase
+        .from('matches')
+        .select('*')
+        .in('stage', stages)
+
+      if (roundMatches?.length) {
+        const ids = roundMatches.map(m => m.id)
+        const { data: preds } = await supabase
+          .from('predictions')
+          .select('*')
+          .eq('participant_id', participant.id)
+          .in('match_id', ids)
+
+        if (preds?.length) {
+          const updates = preds.map(p => ({
+            ...p,
+            submitted: true,
+          }))
+          await supabase
+            .from('predictions')
+            .upsert(updates, { onConflict: 'participant_id,match_id' })
+        }
+      }
+
+      setSubmittedGroups(new Set(allGroups))
+      setSaved(true)
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const groupComplete = matches.length > 0 &&
@@ -239,6 +327,16 @@ export default function Predict({ currentPlayer }) {
             <div className="text-muted">{aiContext.length}/1000 characters</div>
             {aiError && <p className="text-pink font-medium">{aiError}</p>}
           </div>
+
+          <div className="pt-2 border-t border-gold/20">
+            <button
+              onClick={submitAll}
+              disabled={submitting || submittedGroups.size === allGroups.length}
+              className="btn-primary w-full text-sm"
+            >
+              {submitting ? 'Submitting all…' : submittedGroups.size === allGroups.length ? '✓ All submitted' : '📤 Submit All Groups'}
+            </button>
+          </div>
         </div>
       )}
 
@@ -259,9 +357,11 @@ export default function Predict({ currentPlayer }) {
                   : 'bg-surface-2 text-muted border border-surface-3 hover:text-text'}`}
             >
               {g}
-              {isGroupComplete && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-green flex items-center justify-center text-xs text-black">✓</span>
-              )}
+              {submittedGroups.has(g) ? (
+                <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-green flex items-center justify-center text-xs text-black font-bold">📤</span>
+              ) : isGroupComplete ? (
+                <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-gold flex items-center justify-center text-xs text-black">✓</span>
+              ) : null}
             </button>
           )
         })}
@@ -318,9 +418,28 @@ export default function Predict({ currentPlayer }) {
                       max="12"
                       value={scores[match.id]?.home ?? ''}
                       onChange={e => setScore(match.id, 'home', e.target.value)}
-                      disabled={locked}
+                      disabled={locked || submittedGroups.has(activeGroup)}
                       className="score-input text-center w-12"
                     />
+<<<<<<< HEAD
+=======
+                    <div className="flex gap-0.5">
+                      {['-', '+'].map(op => (
+                        <button
+                          key={op}
+                          onClick={() => {
+                            const cur = scores[match.id]?.home ?? 0
+                            const next = op === '+' ? Math.min(12, cur + 1) : Math.max(0, cur - 1)
+                            setScore(match.id, 'home', next)
+                          }}
+                          disabled={locked || submittedGroups.has(activeGroup)}
+                          className="w-5 h-5 rounded text-xs bg-surface-3 text-muted hover:bg-surface-2 hover:text-text disabled:opacity-40"
+                        >
+                          {op}
+                        </button>
+                      ))}
+                    </div>
+>>>>>>> 0972caa (Add Save Draft / Submit buttons with per-group submission tracking)
                   </div>
 
                   {/* Dash */}
@@ -337,6 +456,25 @@ export default function Predict({ currentPlayer }) {
                       disabled={locked}
                       className="score-input text-center w-12"
                     />
+<<<<<<< HEAD
+=======
+                    <div className="flex gap-0.5">
+                      {['-', '+'].map(op => (
+                        <button
+                          key={op}
+                          onClick={() => {
+                            const cur = scores[match.id]?.away ?? 0
+                            const next = op === '+' ? Math.min(12, cur + 1) : Math.max(0, cur - 1)
+                            setScore(match.id, 'away', next)
+                          }}
+                          disabled={locked || submittedGroups.has(activeGroup)}
+                          className="w-5 h-5 rounded text-xs bg-surface-3 text-muted hover:bg-surface-2 hover:text-text disabled:opacity-40"
+                        >
+                          {op}
+                        </button>
+                      ))}
+                    </div>
+>>>>>>> 0972caa (Add Save Draft / Submit buttons with per-group submission tracking)
                   </div>
                 </div>
 
@@ -357,14 +495,29 @@ export default function Predict({ currentPlayer }) {
           {' '}in Group {activeGroup}
           {groupComplete && <span className="text-green ml-2">· complete ✓</span>}
         </p>
-        {!locked && (
-          <button
-            onClick={saveGroup}
-            disabled={saving}
-            className="btn-primary text-sm w-full"
-          >
-            {saving ? 'Saving…' : saved ? `Saved ✓` : `Save Group ${activeGroup} →`}
-          </button>
+        {!locked && !submittedGroups.has(activeGroup) && (
+          <div className="flex gap-3">
+            <button
+              onClick={saveGroup}
+              disabled={saving || submitting}
+              className="btn-secondary text-sm flex-1"
+            >
+              {saving ? 'Saving…' : saved ? 'Saved ✓' : '💾 Save Draft'}
+            </button>
+            <button
+              onClick={submitGroup}
+              disabled={saving || submitting || groupDone === 0}
+              className="btn-primary text-sm flex-1"
+            >
+              {submitting ? 'Submitting…' : '📤 Submit Group'}
+            </button>
+          </div>
+        )}
+        {submittedGroups.has(activeGroup) && (
+          <div className="bg-green/10 border border-green rounded-lg px-4 py-3 text-center">
+            <p className="text-green font-bold text-sm">✓ Group {activeGroup} submitted</p>
+            <p className="text-green text-xs mt-1">Predictions locked - cannot be edited</p>
+          </div>
         )}
         {locked && <p className="text-sm text-pink">Predictions are locked.</p>}
       </div>
