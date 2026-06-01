@@ -4,7 +4,7 @@ import Home    from './pages/Home'
 import Predict from './pages/Predict'
 import Admin   from './pages/Admin'
 
-function Navbar({ currentPlayer }) {
+function Navbar({ currentPlayer, onLogout }) {
   const { pathname } = useLocation()
   const links = [
     { to: '/',        label: 'Home' },
@@ -50,10 +50,18 @@ function Navbar({ currentPlayer }) {
           })}
         </div>
 
-        {/* User avatar (right) */}
+        {/* User section (right) */}
         {currentPlayer && (
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pink via-orange-500 to-gold flex items-center justify-center flex-shrink-0">
-            <span className="font-display font-bold text-xs text-black">{getInitials(currentPlayer.name)}</span>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pink via-orange-500 to-gold flex items-center justify-center flex-shrink-0">
+              <span className="font-display font-bold text-xs text-black">{getInitials(currentPlayer.name)}</span>
+            </div>
+            <button
+              onClick={onLogout}
+              className="text-xs text-muted hover:text-text transition-colors"
+            >
+              Logout
+            </button>
           </div>
         )}
       </div>
@@ -67,9 +75,14 @@ export default function App() {
     catch { return null }
   })
 
+  const handleLogout = () => {
+    localStorage.removeItem('wc2026_player')
+    setCurrentPlayer(null)
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-bg">
-      <Navbar currentPlayer={currentPlayer} />
+      <Navbar currentPlayer={currentPlayer} onLogout={handleLogout} />
       <main className="flex-1">
         <Routes>
           <Route path="/" element={<Home currentPlayer={currentPlayer} setCurrentPlayer={setCurrentPlayer} />} />
